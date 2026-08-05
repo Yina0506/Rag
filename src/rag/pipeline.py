@@ -10,19 +10,34 @@ Implement incrementally, one phase at a time (docs/03..08):
 
 from __future__ import annotations
 
-from rag.models import Candidate, Direction, Limitation, Verdict
-
-
-def verify_claim(claim: str, k: int = 5) -> list[Verdict]:
-    """Retrieve candidates, gate for existence, grade by entailment. Returns
-    graded Verdicts (may be empty / NOT_FOUND — abstaining is correct, not a bug).
-    """
-    raise NotImplementedError("Phase 1: wire retrieve_candidates first")
+from rag.models import Candidate, Direction, Limitation
 
 
 def retrieve_candidates(claim: str, k: int = 5) -> list[Candidate]:
-    """Phase 1 stub: API search -> embed -> index/search -> rerank -> top-k."""
-    raise NotImplementedError("Phase 1: retrieval/sources.py, index.py, rerank.py")
+    """API search -> embed/index -> vector search -> rerank -> top-k Candidates."""
+    from rag.retrieval.index import search, upsert_papers
+    from rag.retrieval.rerank import rerank
+    from rag.retrieval.sources import search_papers
+
+    papers = search_papers(claim, limit=max(k * 4, 20))
+    if not papers:
+        return []
+    upsert_papers(papers)
+
+    from rag.retrieval.embed import embed_text
+
+    query_vector = embed_text(claim)
+    candidates = search(query_vector, k=max(k * 2, 10))
+    return rerank(claim, candidates)[:k]
+
+
+def verify_claim(claim: str, k: int = 5) -> list[Candidate]:
+    """Phase 1: retrieval-only stub — returns ranked Candidates, ungraded.
+    Phase 2 adds the existence gate; Phase 3 upgrades the return type to
+    graded Verdicts (retrieve -> gate -> entail -> sort). Callers written
+    against this signature will need to update then — that's expected.
+    """
+    return retrieve_candidates(claim, k=k)
 
 
 def audit_draft(path: str) -> dict:

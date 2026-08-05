@@ -2,7 +2,7 @@
 
 > Update this every session. It's the first thing the next session reads.
 
-## Current phase: **Phase 0 — Scaffold** (mostly done — Ollama install is the remaining blocker)
+## Current phase: **Phase 1 — Retrieval Backbone** (code complete, live validation pending)
 
 ## Field definition for Pillars B/C
 **The intersection: evaluation of LLM / neural poetry generation, with emphasis on Chinese
@@ -76,14 +76,43 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
 - [x] `Makefile` (`make setup|test|lint|fmt|run|docker-up|docker-down`).
 - [x] Planning docs moved into `docs/` to match this file's own repo-layout description.
 
-## Done log
-- 2026-08-05: Phase 0 scaffold built (see above). `uv run pytest` → 5 passed, 10 xfailed
-  (expected — those cover Phase 1–6 work). `ruff check` and `mypy src` both clean.
-  Remaining before Phase 1: install Ollama, pull `qwen3:4b`, get the S2 API key + set
-  `CONTACT_EMAIL` in a real `.env`.
+## Phase 1 tasks (retrieval backbone — see `docs/03-phase-1-retrieval.md` for detail)
+- [x] `rag/http.py` — shared retry/cache/rate-limited HTTP client (new module, not in the
+      original architecture doc list but needed from day 1; Phase 2's Crossref client will
+      reuse it too).
+- [x] `retrieval/sources.py` — S2 `search_papers`/`get_paper` + OpenAlex fallback, English
+      filtered (ASCII-ratio heuristic on the abstract for now).
+- [x] `retrieval/embed.py` — SPECTER2 (paper) + BGE-M3 (text) embeddings, lazy-loaded,
+      behind the `ml` optional-dependency group.
+- [x] `retrieval/index.py` — Qdrant wrapper: `ensure_collection`/`upsert_papers`/`search`
+      with year/venue filters. Verified against qdrant-client 1.19's live API (`:memory:`
+      client) before writing, not just assumed.
+- [x] `retrieval/rerank.py` — BGE-reranker-v2-m3 cross-encoder, behind `ml`.
+- [x] `pipeline.retrieve_candidates` — wires search → index → vector search → rerank.
+      `pipeline.verify_claim` is a documented-provisional alias for it (Phase 2/3 change its
+      return type to graded `Verdict`s).
+- [x] Tests: `uv run pytest` → **20 passed, 7 xfailed** (xfails are all Phase 2–6 work now —
+      Phase 1's own xfails from Phase 0 are gone). Everything mocked, no network/ML deps
+      needed to run the suite. `ruff check` and `mypy src` both clean.
+- [ ] **Not done yet:** running the notebook / hitting live APIs / seeding 10 real eval
+      claims. All three need `uv sync --extra ml` (multi-GB torch + model download) and,
+      ideally, a real `S2_API_KEY`. Deliberately not done without asking first — see
+      "Next up" below.
 
-## Next up after Phase 0
--> Phase 1 (`docs/03-phase-1-retrieval.md`).
+## Done log
+- 2026-08-05: Phase 0 scaffold built. `uv run pytest` → 5 passed, 10 xfailed. `ruff check`
+  and `mypy src` clean.
+- 2026-08-05: Phase 1 retrieval backbone implemented (see above). Unit-test-level exit bar
+  met; live exit criteria (10 real claims -> ≥5 relevant papers each) still open.
+
+## Next up
+- **Immediate choice for Julius:** run `uv sync --extra ml` now (downloads torch +
+  SPECTER2/BGE-M3/BGE-reranker weights — several GB, will take a while on this connection)
+  and do a live retrieval run to validate Phase 1's exit criteria and seed real claims into
+  `data/eval/test_claims.jsonl`? Or move on to Phase 2 (`docs/04-phase-2-existence-gate.md`,
+  which doesn't need the `ml` extra — Crossref existence checks are pure HTTP) and come back
+  to live-validate Phase 1 later, once the S2 key is in hand too?
+- Either way, still blocked on: Ollama install (for Phase 3+), S2 API key, `CONTACT_EMAIL`.
 
 ## Decisions made
 - Stack locked per `01-architecture.md` (Qdrant embedded, SQLite, SPECTER2+BGE-M3, graded
