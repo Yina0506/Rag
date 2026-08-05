@@ -10,11 +10,15 @@ Implement incrementally, one phase at a time (docs/03..08):
 
 from __future__ import annotations
 
-from rag.models import Candidate, Direction, Limitation
+from rag.models import Candidate, Direction, ExistenceStatus, Limitation
 
 
 def retrieve_candidates(claim: str, k: int = 5) -> list[Candidate]:
-    """API search -> embed/index -> vector search -> rerank -> top-k Candidates."""
+    """API search -> embed/index -> vector search -> rerank -> existence gate
+    -> top-k Candidates. The existence gate (docs/04-phase-2) is applied here,
+    not by callers — this is the single choke point nothing bypasses before
+    presentation, per docs/CONVENTIONS.md."""
+    from rag.retrieval.embed import embed_text
     from rag.retrieval.index import search, upsert_papers
     from rag.retrieval.rerank import rerank
     from rag.retrieval.sources import search_papers
@@ -24,18 +28,36 @@ def retrieve_candidates(claim: str, k: int = 5) -> list[Candidate]:
         return []
     upsert_papers(papers)
 
-    from rag.retrieval.embed import embed_text
-
     query_vector = embed_text(claim)
     candidates = search(query_vector, k=max(k * 2, 10))
-    return rerank(claim, candidates)[:k]
+    reranked = rerank(claim, candidates)
+    return _apply_existence_gate(reranked)[:k]
+
+
+def _apply_existence_gate(candidates: list[Candidate]) -> list[Candidate]:
+    """Drop candidates that don't resolve to a real paper; flag (not drop)
+    retracted ones so callers can still surface a "cite something else"
+    signal instead of the paper silently vanishing."""
+    from rag.verify.existence import existence_verdict
+
+    kept = []
+    for candidate in candidates:
+        verdict = existence_verdict(candidate.paper)
+        if verdict == ExistenceStatus.NOT_FOUND:
+            continue
+        if verdict == ExistenceStatus.RETRACTED:
+            candidate = candidate.model_copy(
+                update={"paper": candidate.paper.model_copy(update={"retracted": True})}
+            )
+        kept.append(candidate)
+    return kept
 
 
 def verify_claim(claim: str, k: int = 5) -> list[Candidate]:
-    """Phase 1: retrieval-only stub — returns ranked Candidates, ungraded.
-    Phase 2 adds the existence gate; Phase 3 upgrades the return type to
-    graded Verdicts (retrieve -> gate -> entail -> sort). Callers written
-    against this signature will need to update then — that's expected.
+    """Phase 1-2: retrieval + existence-gated, still ungraded. Phase 3
+    upgrades the return type to graded Verdicts (retrieve -> gate -> entail ->
+    sort). Callers written against this signature will need to update then —
+    that's expected.
     """
     return retrieve_candidates(claim, k=k)
 

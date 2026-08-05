@@ -2,7 +2,7 @@
 
 > Update this every session. It's the first thing the next session reads.
 
-## Current phase: **Phase 1 — Retrieval Backbone** (code complete, live validation pending)
+## Current phase: **Phase 2 — Existence Gate** (code complete, live validation pending)
 
 ## Field definition for Pillars B/C
 **The intersection: evaluation of LLM / neural poetry generation, with emphasis on Chinese
@@ -99,20 +99,45 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
       ideally, a real `S2_API_KEY`. Deliberately not done without asking first — see
       "Next up" below.
 
+## Phase 2 tasks (existence gate — see `docs/04-phase-2-existence-gate.md` for detail)
+- [x] `verify/existence.py` — `resolve_doi` (Crossref + S2-id fallback), `is_retracted`
+      (Crossref `update-to`/`is-retracted-by`), `existence_verdict`, and
+      `fuzzy_match_existence` (title+author+year fuzzy match via Crossref bibliographic
+      search — wired for Phase 4's draft-audit mode, not called anywhere yet).
+- [x] Gate wired into `pipeline.retrieve_candidates` as the single choke point:
+      `NOT_FOUND` candidates dropped, `RETRACTED` ones flagged (`paper.retracted = True`)
+      rather than silently dropped. `verify_claim` inherits this for free since it's still
+      an alias for `retrieve_candidates`.
+- [x] Tests: `uv run pytest` → **31 passed, 5 xfailed** (Phase 2's own xfails are gone; only
+      Phase 3–6 remain). Fabricated-paper rejection, both retraction-detection paths, the
+      DOI-less S2 fallback, fuzzy-match accept/reject, and the pipeline gate itself
+      (drop vs. flag, no in-place mutation) are all covered — mocked, no real network.
+      `ruff check` / `mypy src` clean.
+- [x] `data/eval/existence_gold.jsonl` seeded: 5 synthetic fabricated fixtures (safe to
+      invent) + 3 `RETRACTED` rows left as `"doi": "TODO"` — deliberately not filled with
+      invented DOIs; needs a real retracted paper looked up before it's useful for a live
+      regression run.
+
 ## Done log
 - 2026-08-05: Phase 0 scaffold built. `uv run pytest` → 5 passed, 10 xfailed. `ruff check`
   and `mypy src` clean.
-- 2026-08-05: Phase 1 retrieval backbone implemented (see above). Unit-test-level exit bar
-  met; live exit criteria (10 real claims -> ≥5 relevant papers each) still open.
+- 2026-08-05: Phase 1 retrieval backbone implemented. Unit-test-level exit bar met; live
+  exit criteria (10 real claims -> ≥5 relevant papers each) still open — deferred, see below.
+- 2026-08-05: Phase 2 existence gate implemented and wired into the pipeline as the sole
+  choke point (see above). Same live-validation gap as Phase 1: unit tests all mock
+  `cached_get`, so this hasn't hit real Crossref yet.
 
 ## Next up
-- **Immediate choice for Julius:** run `uv sync --extra ml` now (downloads torch +
-  SPECTER2/BGE-M3/BGE-reranker weights — several GB, will take a while on this connection)
-  and do a live retrieval run to validate Phase 1's exit criteria and seed real claims into
-  `data/eval/test_claims.jsonl`? Or move on to Phase 2 (`docs/04-phase-2-existence-gate.md`,
-  which doesn't need the `ml` extra — Crossref existence checks are pure HTTP) and come back
-  to live-validate Phase 1 later, once the S2 key is in hand too?
-- Either way, still blocked on: Ollama install (for Phase 3+), S2 API key, `CONTACT_EMAIL`.
+- Phase 3 (`docs/05-phase-3-entailment.md`) needs Ollama running locally — still not
+  installed on this machine. Either install Ollama + pull `qwen3:4b` now, or do Phase 3's
+  NLI-model entailer path first (DeBERTa, no Ollama needed) and add the LLM-as-entailer once
+  Ollama's in place.
+- Still deferred from Phase 1: live validation (`uv sync --extra ml`, a real S2 API key,
+  running `notebooks/01_retrieval_sanity.ipynb` against real APIs, filling in
+  `data/eval/test_claims.jsonl` and the 3 `RETRACTED` rows in `existence_gold.jsonl` with
+  real data). None of this blocks writing more code, only blocks *proving* Phases 1–2 work
+  end-to-end — worth doing before the thesis write-up leans on either exit criteria.
+- Still blocked on: Ollama install, S2 API key, `CONTACT_EMAIL`.
 
 ## Decisions made
 - Stack locked per `01-architecture.md` (Qdrant embedded, SQLite, SPECTER2+BGE-M3, graded

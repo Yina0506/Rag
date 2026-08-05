@@ -1,0 +1,8 @@
+{"doi": "10.9999/fabricated-quantum-poetry-2024", "title": "Quantum Entanglement in Tang Dynasty Poetic Structures", "expected": "NOT_FOUND", "notes": "synthetic fixture, deliberately implausible, no real paper"}
+{"doi": "10.9999/fake-neural-haiku-benchmark", "title": "A Universal Benchmark for Neural Haiku Generation Across All Languages", "expected": "NOT_FOUND", "notes": "synthetic fixture, no real paper"}
+{"doi": "10.5555/nonexistent-eval-fixture-001", "title": "The Complete Solved Problem of Machine Creativity", "expected": "NOT_FOUND", "notes": "synthetic fixture, no real paper"}
+{"doi": "10.9999/imaginary-2023-chinese-nlp", "title": "Fabricated Study on Classical Chinese Meter Detection", "expected": "NOT_FOUND", "notes": "synthetic fixture, no real paper"}
+{"doi": null, "title": "A Paper That Does Not Exist In Any Database", "id": "s2:fabricated000000", "expected": "NOT_FOUND", "notes": "synthetic fixture, no DOI, fake S2 id, exercises resolve_doi's S2 fallback path"}
+{"doi": "TODO", "title": "TODO", "expected": "RETRACTED", "notes": "placeholder — source a real retracted DOI from https://retractionwatch.com or Crossref (filter=update-type:retraction) before running regression; not fabricated here to avoid inventing a false retraction claim"}
+{"doi": "TODO", "title": "TODO", "expected": "RETRACTED", "notes": "placeholder — same as above; aim for one from the field corpus if possible (NLP/comp-creativity), otherwise any well-known retracted paper"}
+{"doi": "TODO", "title": "TODO", "expected": "RETRACTED", "notes": "placeholder — same as above"}
