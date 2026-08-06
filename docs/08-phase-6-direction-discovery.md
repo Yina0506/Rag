@@ -65,11 +65,22 @@ shows the method surfaces directions that were later actually worked on.
 - `label_cluster` against real `qwen3:4b`: three independently-worded "English-only
   evaluation" limitation statements correctly collapsed into one accurate, grounded direction
   sentence — fast too (~30s with a warm model, no `/no_think` issues since Phase 3's fix).
-- **Not live-tested**: `cluster_limitations` (needs the `cluster` extra for HDBSCAN — not
-  installed) and `check_openness`'s entailment loop end-to-end (would need a real corpus, and
-  Phase 5's implicit-extraction path is itself still partly GROBID-gated) and the full
-  `pipeline.discover_directions` run (would compound Phase 3-5's live-call costs across an
-  entire corpus — expensive to run just to prove the wiring, which unit tests already cover).
+- **Update 2026-08-06 (later): `cluster_limitations` also live-tested**, once `uv sync
+  --extra cluster` was done. Real finding: with only 5 example limitations, HDBSCAN's
+  default `min_samples` (≈ `min_cluster_size`) labeled *everything* noise — even an
+  obviously tight pair (embedding distance 0.26 vs ~1.0 for unrelated pairs). This is
+  expected density-based-clustering behavior at tiny N, not a bug in this project's code:
+  HDBSCAN needs a real sample size to estimate density confidently, and the actual target is
+  a field corpus with hundreds of limitations, where the conservative default is correct.
+  Confirmed by passing `min_samples=1` explicitly: it then correctly separated the 5 example
+  limitations into the two real semantic groups (English-only-evaluation vs.
+  GPU-memory-requirements). `min_samples` is now an exposed (not hardcoded) parameter on
+  `cluster_limitations` so a small eval/demo run can loosen it without changing the
+  production default `build_directions` uses.
+- **Still not live-tested**: `check_openness`'s entailment loop end-to-end (would need a real
+  corpus, and Phase 5's implicit-extraction path is itself still partly GROBID-gated) and the
+  full `pipeline.discover_directions` run (would compound Phase 3-5's live-call costs across
+  an entire corpus — expensive to run just to prove the wiring, which unit tests already cover).
 
 ## Evaluation — retrospective validation (see `09-evaluation.md`)
 

@@ -46,9 +46,21 @@ sane by eye.
 The S2 API key arrived and `retrieval.sources.search_papers` was live-tested against the real
 API (see docs/06-phase-4-draft-audit.md's live-validation section) — it correctly surfaced
 the real "Attention Is All You Need" among other real, relevant results. This confirms the
-API-search half of Phase 1 works end-to-end. **Still not done:** the full exit criteria (10
-hand-picked claims, ≥5 relevant papers each, via the notebook) and anything needing the `ml`
-extra (SPECTER2/BGE-M3 embedding, reranking) — that path still needs `uv sync --extra ml`.
+API-search half of Phase 1 works end-to-end.
+
+**Update 2026-08-06 (later): `uv sync --extra ml` done, embed/rerank live-tested.**
+`embed_text` (BGE-M3, 1024-dim) and `rerank` (BGE-reranker-v2-m3) both work correctly —
+reranking cleanly separated a relevant Transformer abstract (score 0.988) from an unrelated
+protein-folding one (score 0.00002). **Real finding, not just confirmation:**
+`allenai/specter2` (the originally planned paper-embedding model) fails to load via plain
+`SentenceTransformer` — it's published in the `adapters`/AdapterHub format, not HuggingFace
+`peft` (installing `peft` doesn't fix it; confirmed directly). Switched
+`settings.paper_embed_model` to `sentence-transformers/allenai-specter` (original SPECTER,
+same citation-similarity objective, properly packaged for direct loading) — same 768-dim
+output, live-verified working. See `retrieval/embed.py` for detail.
+**Still not done:** the full exit criteria (10 hand-picked claims, ≥5 relevant papers each,
+via the notebook) — the pieces it needs are now all individually proven, just not run
+together as the notebook end-to-end yet.
 
 ## Still open (code complete, not yet validated live)
 

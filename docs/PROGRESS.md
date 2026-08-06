@@ -2,8 +2,9 @@
 
 > Update this every session. It's the first thing the next session reads.
 
-## Current phase: **All 6 build phases done.** Remaining work is live validation at real
-scale (GROBID, `ml`/`cluster` extras, assembling the actual field corpus) — see "Next up."
+## Current phase: **All 6 build phases done; `ml`/`cluster` extras live-validated.**
+Remaining: a running GROBID instance, assembling the actual field corpus, and a Streamlit UI
+(now in progress) — see "Next up."
 
 ## Field definition for Pillars B/C
 **The intersection: evaluation of LLM / neural poetry generation, with emphasis on Chinese
@@ -252,22 +253,29 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
   Aggregate/cluster/openness all done; `get_citing_papers` and `label_cluster` both
   live-verified. **All 6 build phases are now complete with passing tests (98 passed, 0
   xfailed).** What's left is live validation at real scale, not more code — see below.
+- 2026-08-06: `uv sync --extra ml --extra cluster` done; embed/rerank/NLI-entailer/HDBSCAN
+  all live-tested against real weights (not just mocked). Three real findings, all fixed:
+  (1) `allenai/specter2` doesn't load via plain `SentenceTransformer` (wrong adapter format —
+  `adapters`/AdapterHub, not `peft`); switched to `sentence-transformers/allenai-specter`,
+  same 768-dim output, live-verified. (2) `nli_entail` was using raw un-normalized logits as
+  "confidence" instead of probabilities — fixed with softmax, mocked tests updated to
+  realistic logit-scale values. (3) HDBSCAN's default `min_samples` can't extract any cluster
+  from a handful of limitations (expected at tiny N, not a bug) — exposed `min_samples` as a
+  tunable parameter rather than changing the production default. `docs/03`, `05`, `08` all
+  updated with detail. Started building a Streamlit UI next (see below).
 
 ## Next up — no more unbuilt phases; this is now a live-validation and eval punch list
-- **`uv sync --extra ml` / `--extra cluster`**: embeddings (SPECTER2/BGE-M3), reranking
-  (BGE-reranker), the NLI entailer, and HDBSCAN clustering are all code-complete but
-  untested against real weights. This unblocks: `notebooks/01_retrieval_sanity.ipynb`,
-  `03_entailment_vs_baseline.ipynb`, and a real `cluster_limitations` run.
 - **A running GROBID instance** (`docker compose --profile phase5 up grobid`): unblocks
   Phase 4's PDF draft-audit path and Phase 5's full-text fetch (+ its "borrow similar
-  papers' limitations" mechanism).
+  papers' limitations" mechanism). Only remaining big infrastructure gap.
 - **Assembling the actual field corpus** (Chinese-poetry/LLM-generation evaluation, per the
   field definition above): needed for a real end-to-end `discover_directions` run and the
   retrospective-validation eval in `docs/08`'s "Evaluation" section. This is the biggest
   remaining chunk of work — everything upstream of it is ready to consume it.
 - Smaller open items: seed real rows into `data/eval/test_claims.jsonl` and the 3
-  `RETRACTED` rows in `existence_gold.jsonl`; the OpenReview-comment gold set for Phase 5;
-  the Streamlit UI (deliberately deferred this whole build, per `CONVENTIONS.md`).
+  `RETRACTED` rows in `existence_gold.jsonl`; the OpenReview-comment gold set for Phase 5.
+- **Streamlit UI**: now being built (per `01-architecture.md`'s locked stack choice) — see
+  the `ui/` app and recent commits for what's live.
 - Ollama's cold-load latency (~2-3min after ~5min idle, see Phase 3) made several live calls
   slow this session — plan batch/eval runs around keeping the model warm (a periodic
   keep-alive request) rather than letting it go idle between calls.

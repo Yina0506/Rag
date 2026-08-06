@@ -36,7 +36,14 @@ class Settings(BaseSettings):
     qdrant_collection: str = "papers"
 
     # --- embedding / rerank models ---
-    paper_embed_model: str = "allenai/specter2"
+    # NOT allenai/specter2: live-tested (2026-08-06) and it fails to load via plain
+    # SentenceTransformer — it's published as an `adapters`/AdapterHub-format adapter on a
+    # base transformer, which is a different schema than HuggingFace `peft` (installing
+    # `peft` does not fix it; confirmed). `sentence-transformers/allenai-specter` is the
+    # original SPECTER (v1), packaged as a directly-loadable sentence-transformers
+    # checkpoint, built for the same citation-based paper-similarity objective. See
+    # docs/03-phase-1-retrieval.md for the full story.
+    paper_embed_model: str = "sentence-transformers/allenai-specter"
     text_embed_model: str = "BAAI/bge-m3"
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
 

@@ -1,4 +1,4 @@
-"""SPECTER2 (paper-level) + BGE-M3 (passage/claim-level) embeddings.
+"""Paper-level + BGE-M3 (passage/claim-level) embeddings.
 
 Model names come from `rag.config.settings` — never hardcode here. Models load
 lazily on first use (module-level cache) since they're heavy on an 8GB
@@ -7,11 +7,15 @@ embed/index the corpus fully before loading the LLM for entailment.
 
 Requires the `ml` optional-dependency group: `uv sync --extra ml`.
 
-Note: `allenai/specter2` is published as an adapter on top of a base
-transformer (needs the `adapters` package for its proximity-mode adapter to
-get the true SPECTER2 behavior). Loading it here as a plain
-`sentence-transformers` model is a reasonable Phase 1 starting point; revisit
-if eval shows paper-similarity quality is off.
+**Live-verified 2026-08-06**, with a real finding: `allenai/specter2` (the
+originally planned model) fails to load via plain `SentenceTransformer` — it's
+published in the `adapters`/AdapterHub format, not HuggingFace `peft`
+(installing `peft` doesn't fix it; confirmed directly, error changes but
+still fails). `settings.paper_embed_model` now defaults to
+`sentence-transformers/allenai-specter` — the original SPECTER (v1), built
+for the same citation-based paper-similarity objective, packaged as a
+directly-loadable checkpoint. Revisit only if implementing real
+`adapters`-library loading turns out to matter for eval quality.
 """
 
 from __future__ import annotations
@@ -36,7 +40,7 @@ def _text_model():
 
 
 def embed_paper(title: str, abstract: str | None) -> list[float]:
-    """SPECTER2 embedding for paper-level similarity (title + abstract)."""
+    """SPECTER embedding for paper-level similarity (title + abstract)."""
     text = f"{title}\n{abstract or ''}".strip()
     vector = _paper_model().encode(text, normalize_embeddings=True)
     return vector.tolist()

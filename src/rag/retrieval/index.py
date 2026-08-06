@@ -4,7 +4,7 @@ Two modes via `settings.qdrant_mode` (docs/01-architecture.md):
 - "embedded": local on-disk Qdrant at `data/qdrant` — no docker, default for dev.
 - "server": talk to the `qdrant` service from docker-compose.yml.
 
-Paper vectors are SPECTER2 (`retrieval.embed.embed_paper`); `VECTOR_SIZE` must
+Paper vectors are SPECTER (`retrieval.embed.embed_paper`); `VECTOR_SIZE` must
 match that model's output dimension.
 """
 
@@ -19,7 +19,7 @@ from rag.config import settings
 from rag.models import Candidate, Paper
 from rag.retrieval.embed import embed_paper
 
-VECTOR_SIZE = 768  # allenai/specter2 embedding dimension
+VECTOR_SIZE = 768  # sentence-transformers/allenai-specter embedding dimension
 
 
 def get_client() -> QdrantClient:

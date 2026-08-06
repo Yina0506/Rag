@@ -24,8 +24,13 @@ accuracy beats a naive "ask the LLM if it's relevant" baseline. Tool correctly r
     - [x] **NLI model**: `cross-encoder/nli-deberta-v3-base` (a DeBERTa-v3 NLI cross-encoder,
           reuses the `sentence-transformers` dependency already needed for reranking — no new
           `ml`-extra dependency). Maps entailment→SUPPORTS/WEAK (0.7 threshold),
-          contradiction→CONTRADICTS, neutral→NEUTRAL. Code complete, not yet live-tested
-          (needs `uv sync --extra ml`, same gap as Phase 1's embed/rerank).
+          contradiction→CONTRADICTS, neutral→NEUTRAL. **Live-verified 2026-08-06** (SUPPORTS
+          and CONTRADICTS cases both correctly graded with high confidence) — and this run
+          caught a real bug: `CrossEncoder.predict` returns raw un-normalized logits (e.g.
+          4.6, -4.9), not probabilities. Using them directly as "confidence" produced values
+          >1, and the 0.7 grading threshold was being compared against logits it was never
+          calibrated for. Fixed with softmax normalization in `nli_entail`; mocked unit tests
+          updated to use realistic logit-scale values instead of pre-normalized ones.
   - [x] Evidence selection: abstract-level (`candidate.paper.abstract`); passage-level
         deferred to Phase 5 as planned.
   - [x] `justify(claim, evidence, grade) -> str` — for the LLM backend this is produced in

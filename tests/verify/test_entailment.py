@@ -65,28 +65,32 @@ def test_llm_entail_prompt_never_leaks_outside_knowledge_instruction(mocker) -> 
 
 def test_nli_entail_maps_high_entailment_to_supports(mocker) -> None:
     mock_model = mocker.Mock()
-    mock_model.predict.return_value = [[0.05, 0.9, 0.05]]  # [contradiction, entailment, neutral]
+    # CrossEncoder.predict returns raw logits, not probabilities (live-caught
+    # bug — see nli_entail's docstring). Mock with realistic logit magnitudes,
+    # not pre-normalized values, so the test exercises the actual softmax path.
+    mock_model.predict.return_value = [[-5.0, 5.0, -2.0]]  # [contradiction, entailment, neutral]
     mocker.patch.object(entailment, "_nli_model", return_value=mock_model)
 
     grade, confidence, _justification = entailment.nli_entail("claim", "evidence")
 
     assert grade == Grade.SUPPORTS
-    assert confidence == 0.9
+    assert confidence > 0.9
 
 
 def test_nli_entail_maps_moderate_entailment_to_weak(mocker) -> None:
     mock_model = mocker.Mock()
-    mock_model.predict.return_value = [[0.1, 0.5, 0.4]]
+    mock_model.predict.return_value = [[-1.0, 1.0, 0.5]]  # softmax -> entailment ~0.57, below 0.7
     mocker.patch.object(entailment, "_nli_model", return_value=mock_model)
 
-    grade, _confidence, _justification = entailment.nli_entail("claim", "evidence")
+    grade, confidence, _justification = entailment.nli_entail("claim", "evidence")
 
     assert grade == Grade.WEAK
+    assert confidence < 0.7
 
 
 def test_nli_entail_maps_high_contradiction_to_contradicts(mocker) -> None:
     mock_model = mocker.Mock()
-    mock_model.predict.return_value = [[0.8, 0.1, 0.1]]
+    mock_model.predict.return_value = [[5.0, -3.0, -2.0]]
     mocker.patch.object(entailment, "_nli_model", return_value=mock_model)
 
     grade, _confidence, _justification = entailment.nli_entail("claim", "evidence")

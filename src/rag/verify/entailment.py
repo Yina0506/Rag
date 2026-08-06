@@ -13,6 +13,7 @@ something a single (claim, evidence) judgment can express on its own.
 
 from __future__ import annotations
 
+import math
 import re
 from functools import lru_cache
 
@@ -82,10 +83,20 @@ def _nli_model():
 def nli_entail(claim: str, evidence: str) -> tuple[Grade, float, str]:
     """`cross-encoder/nli-deberta-v3-base` (and the other sentence-transformers
     NLI cross-encoders) return 3 scores in the fixed order
-    [contradiction, entailment, neutral] per the model card."""
-    contradiction, entailment, neutral = (
-        float(s) for s in _nli_model().predict([(evidence, claim)])[0]
-    )
+    [contradiction, entailment, neutral] per the model card.
+
+    **Live-caught bug**: `CrossEncoder.predict` returns raw un-normalized
+    logits (e.g. 4.6, -4.9), not probabilities — using them directly as
+    "confidence" produced nonsense values >1, and the 0.7 SUPPORTS/WEAK
+    threshold in `_nli_scores_to_grade` was being compared against logits it
+    was never calibrated for. Softmax-normalized here so confidence is a
+    real probability and the threshold means what it says.
+    """
+    raw_scores = [float(s) for s in _nli_model().predict([(evidence, claim)])[0]]
+    exp_scores = [math.exp(s) for s in raw_scores]
+    total = sum(exp_scores)
+    contradiction, entailment, neutral = (s / total for s in exp_scores)
+
     grade = _nli_scores_to_grade(entailment, contradiction, neutral)
     confidence = max(entailment, contradiction, neutral)
     justification = (

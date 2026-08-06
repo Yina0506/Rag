@@ -31,14 +31,25 @@ Respond with ONLY the one-sentence direction statement, nothing else — no prea
 
 
 def cluster_limitations(
-    limitations: list[Limitation], min_cluster_size: int = 2
+    limitations: list[Limitation], min_cluster_size: int = 2, min_samples: int | None = None
 ) -> list[list[Limitation]]:
     """Embed (reusing each `Limitation.topic_embedding` if Phase 5 already
     set one, computing it otherwise) + HDBSCAN. No preset k — cluster count
     falls out of the data's actual density. HDBSCAN's noise label (-1,
     points too sparse to belong to any dense cluster) is dropped: a
     limitation raised by exactly one paper with nothing similar isn't a
-    "direction" by this method's own definition (frequency-weighted gaps)."""
+    "direction" by this method's own definition (frequency-weighted gaps).
+
+    **Live-tested finding**: HDBSCAN's default `min_samples` (falls back to
+    `min_cluster_size`) is too conservative to extract any cluster from a
+    handful of limitations, even an obviously tight pair (embedding distance
+    0.26 vs ~1.0 for unrelated pairs) — everything gets labeled noise. This
+    is expected density-based-clustering behavior at tiny N, not a bug: the
+    real target is a field corpus with hundreds of limitations, where
+    default settings are the right conservative choice. `min_samples` is
+    exposed here (rather than silently lowered) so a small eval/demo run can
+    pass e.g. `min_samples=1` without changing production defaults.
+    """
     if not limitations:
         return []
 
@@ -52,7 +63,9 @@ def cluster_limitations(
         for lim in limitations
     ]
     matrix = np.array(vectors)
-    labels = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size).fit_predict(matrix)
+    labels = hdbscan.HDBSCAN(
+        min_cluster_size=min_cluster_size, min_samples=min_samples
+    ).fit_predict(matrix)
 
     clusters: dict[int, list[Limitation]] = {}
     for label, limitation in zip(labels, limitations, strict=True):
