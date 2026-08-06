@@ -54,7 +54,10 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
 - [x] `.env.example` with `S2_API_KEY`, `CONTACT_EMAIL`, `LLM_PROVIDER`, `*_API_KEY`.
 - [x] `.gitignore` (data/ subdirs, .env, __pycache__, model caches).
 - [x] `src/rag/config.py` (pydantic-settings: env/`.env` loaded, cache dir, all model names).
-- [ ] Install Ollama + pull a Qwen model; smoke-test through `llm.py` stub. **[! blocker below]**
+- [x] Install Ollama + pull a Qwen model; smoke-test through `llm.py` stub. Installed via
+      `brew install ollama`, running as a background service (`brew services start ollama`).
+      Pulled `qwen3:4b` (2.5GB, the documented default above). `get_llm().complete(...)`
+      round-trips correctly through `OllamaClient`.
 - [x] `git init`, first commit.
 
 ## Additional scaffold beyond the original Phase 0 list
@@ -126,18 +129,19 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
 - 2026-08-05: Phase 2 existence gate implemented and wired into the pipeline as the sole
   choke point (see above). Same live-validation gap as Phase 1: unit tests all mock
   `cached_get`, so this hasn't hit real Crossref yet.
+- 2026-08-06: Ollama installed (`brew install ollama`, running as a `brew services` daemon)
+  and `qwen3:4b` pulled. `rag.llm.get_llm().complete(...)` verified working end-to-end
+  against the real local model (not mocked). Phase 0's last open item is now done.
 
 ## Next up
-- Phase 3 (`docs/05-phase-3-entailment.md`) needs Ollama running locally — still not
-  installed on this machine. Either install Ollama + pull `qwen3:4b` now, or do Phase 3's
-  NLI-model entailer path first (DeBERTa, no Ollama needed) and add the LLM-as-entailer once
-  Ollama's in place.
+- Phase 3 (`docs/05-phase-3-entailment.md`) can now build its LLM-as-entailer path against a
+  real, running `qwen3:4b` — Ollama is no longer a blocker.
 - Still deferred from Phase 1: live validation (`uv sync --extra ml`, a real S2 API key,
   running `notebooks/01_retrieval_sanity.ipynb` against real APIs, filling in
   `data/eval/test_claims.jsonl` and the 3 `RETRACTED` rows in `existence_gold.jsonl` with
   real data). None of this blocks writing more code, only blocks *proving* Phases 1–2 work
   end-to-end — worth doing before the thesis write-up leans on either exit criteria.
-- Still blocked on: Ollama install, S2 API key, `CONTACT_EMAIL`.
+- Still blocked on: S2 API key, `CONTACT_EMAIL`.
 
 ## Decisions made
 - Stack locked per `01-architecture.md` (Qdrant embedded, SQLite, SPECTER2+BGE-M3, graded
@@ -147,7 +151,8 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
 ## Blockers / waiting on Julius
 - [ ] Semantic Scholar API key in `.env` (request form -> key by email; `x-api-key` header)
 - [ ] Contact email for OpenAlex/Crossref polite pools
-- [ ] Ollama installed + `qwen3:4b` pulled (fallback `qwen3:1.7b`) — no API key needed
+- [x] Ollama installed (v0.32.5 via Homebrew, running as a background service) +
+      `qwen3:4b` pulled and smoke-tested through `llm.py` — 2026-08-06.
 - [x] Docker installed (v29.2.1) — `docker-compose.yml` runs Qdrant now; GROBID is
       behind the `phase5` compose profile, not needed until then.
 
