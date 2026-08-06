@@ -21,12 +21,12 @@ from rag.config import settings
 
 
 class LLMClient(Protocol):
-    def complete(self, prompt: str, *, system: str | None = None) -> str: ...
+    def complete(self, prompt: str, *, system: str | None = None, think: bool = False) -> str: ...
 
 
 class BaseLLMClient(ABC):
     @abstractmethod
-    def complete(self, prompt: str, *, system: str | None = None) -> str: ...
+    def complete(self, prompt: str, *, system: str | None = None, think: bool = False) -> str: ...
 
 
 class OllamaClient(BaseLLMClient):
@@ -34,14 +34,27 @@ class OllamaClient(BaseLLMClient):
         self.base_url = (base_url or settings.ollama_base_url).rstrip("/")
         self.model = model or settings.ollama_model
 
-    def complete(self, prompt: str, *, system: str | None = None) -> str:
+    def complete(self, prompt: str, *, system: str | None = None, think: bool = False) -> str:
+        """`think=False` (the default) appends Qwen3's native `/no_think`
+        directive — measured locally at ~5-20s per call on an 8GB M2 CPU vs.
+        reliably blowing past a 120s timeout with thinking on, since Ollama's
+        `"think": false` request field is NOT honored by qwen3:4b (tested
+        directly against /api/generate and /api/chat; both still emitted a
+        <think> block). If this stops being qwen-specific, revisit — appending
+        `/no_think` to a model that doesn't understand it is a harmless no-op
+        in practice but is still a leaky abstraction.
+        """
+        text = f"{prompt} /no_think" if not think else prompt
         payload = {
             "model": self.model,
-            "prompt": prompt,
+            "prompt": text,
             "system": system or "",
             "stream": False,
         }
-        with httpx.Client(timeout=120) as client:
+        # 240s headroom: measured ~2m50s for a cold model load (Ollama unloads
+        # after ~5min idle) + generation on this 8GB M2; a warm model is far
+        # faster. Cold-start latency, not thinking mode, is the dominant cost.
+        with httpx.Client(timeout=240) as client:
             resp = client.post(f"{self.base_url}/api/generate", json=payload)
             resp.raise_for_status()
         return resp.json()["response"]
@@ -53,7 +66,7 @@ class OpenAIClient(BaseLLMClient):
             raise RuntimeError("OPENAI_API_KEY not set")
         self.model = model
 
-    def complete(self, prompt: str, *, system: str | None = None) -> str:
+    def complete(self, prompt: str, *, system: str | None = None, think: bool = False) -> str:
         raise NotImplementedError("Wire up when a comparison run is actually needed")
 
 
@@ -63,7 +76,7 @@ class AnthropicClient(BaseLLMClient):
             raise RuntimeError("ANTHROPIC_API_KEY not set")
         self.model = model
 
-    def complete(self, prompt: str, *, system: str | None = None) -> str:
+    def complete(self, prompt: str, *, system: str | None = None, think: bool = False) -> str:
         raise NotImplementedError("Wire up when a comparison run is actually needed")
 
 

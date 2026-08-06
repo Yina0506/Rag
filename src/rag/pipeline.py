@@ -2,7 +2,7 @@
 wires retrieval -> existence gate -> entailment together, per module.
 
 Implement incrementally, one phase at a time (docs/03..08):
-- verify_claim          Phase 1 (retrieval-only stub) -> Phase 2 (+ gate) -> Phase 3 (+ entailment)
+- verify_claim          Phase 1 (retrieval-only) -> Phase 2 (+ gate) -> Phase 3 (+ entailment, done)
 - audit_draft           Phase 4
 - extract_limitations   Phase 5
 - discover_directions   Phase 6
@@ -10,7 +10,15 @@ Implement incrementally, one phase at a time (docs/03..08):
 
 from __future__ import annotations
 
-from rag.models import Candidate, Direction, ExistenceStatus, Limitation
+from rag.models import Candidate, Claim, Direction, ExistenceStatus, Grade, Limitation, Verdict
+
+_GRADE_RANK = {
+    Grade.CONTRADICTS: 0,
+    Grade.NOT_FOUND: 0,
+    Grade.NEUTRAL: 1,
+    Grade.WEAK: 2,
+    Grade.SUPPORTS: 3,
+}
 
 
 def retrieve_candidates(claim: str, k: int = 5) -> list[Candidate]:
@@ -53,13 +61,51 @@ def _apply_existence_gate(candidates: list[Candidate]) -> list[Candidate]:
     return kept
 
 
-def verify_claim(claim: str, k: int = 5) -> list[Candidate]:
-    """Phase 1-2: retrieval + existence-gated, still ungraded. Phase 3
-    upgrades the return type to graded Verdicts (retrieve -> gate -> entail ->
-    sort). Callers written against this signature will need to update then —
-    that's expected.
+def verify_claim(claim: str, k: int = 5) -> list[Verdict]:
+    """retrieve -> existence gate -> entail -> sort -> graded Verdicts.
+
+    Returns `[]` only when retrieval/the existence gate found nothing at all
+    (nothing to build a Verdict from — Verdict.paper is required). When real
+    candidates exist but none clear WEAK, the top Verdict's grade is
+    overridden to NOT_FOUND rather than silently ranking a bad candidate
+    first — docs/05-phase-3-entailment.md's "the tool must be willing to say
+    no supporting paper found" is enforced here, not left to the caller.
     """
-    return retrieve_candidates(claim, k=k)
+    from rag.verify.entailment import _run_entailer
+
+    candidates = retrieve_candidates(claim, k=k)
+    if not candidates:
+        return []
+
+    claim_obj = Claim(text=claim)
+    verdicts = []
+    for candidate in candidates:
+        evidence = candidate.paper.abstract or ""
+        grade, confidence, justification = _run_entailer(claim, evidence)
+        verdicts.append(
+            Verdict(
+                claim=claim_obj,
+                paper=candidate.paper,
+                grade=grade,
+                evidence_passage=evidence,
+                confidence=confidence,
+                justification=justification,
+            )
+        )
+    verdicts.sort(key=lambda v: _GRADE_RANK[v.grade], reverse=True)
+
+    if _GRADE_RANK[verdicts[0].grade] < _GRADE_RANK[Grade.WEAK]:
+        best = verdicts[0]
+        verdicts[0] = best.model_copy(
+            update={
+                "grade": Grade.NOT_FOUND,
+                "justification": (
+                    f"No candidate paper supports this claim (closest candidate graded "
+                    f"{best.grade.value}, confidence {best.confidence:.2f})."
+                ),
+            }
+        )
+    return verdicts
 
 
 def audit_draft(path: str) -> dict:

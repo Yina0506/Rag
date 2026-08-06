@@ -2,7 +2,7 @@
 
 > Update this every session. It's the first thing the next session reads.
 
-## Current phase: **Phase 2 — Existence Gate** (code complete, live validation pending)
+## Current phase: **Phase 3 — Entailment** (LLM-as-entailer live-verified; NLI backend + eval notebook pending)
 
 ## Field definition for Pillars B/C
 **The intersection: evaluation of LLM / neural poetry generation, with emphasis on Chinese
@@ -121,6 +121,31 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
       invented DOIs; needs a real retracted paper looked up before it's useful for a live
       regression run.
 
+## Phase 3 tasks (entailment — see `docs/05-phase-3-entailment.md` for detail)
+- [x] `verify/entailment.py` — `llm_entail` (qwen3:4b via Ollama, structured `GRADE:`/
+      `CONFIDENCE:`/`JUSTIFICATION:` prompt) and `nli_entail` (`cross-encoder/nli-deberta-v3-base`,
+      reuses the `ml` extra's sentence-transformers dep, no new dependency) behind one
+      `entail`/`justify` interface, selected by `settings.entailment_backend`.
+- [x] **Live-verified the LLM backend against the real model** (not just mocked) — SUPPORTS,
+      NEUTRAL, and CONTRADICTS cases all graded correctly with sensible confidence and a
+      justification quoting the evidence. NLI backend still code-only, needs `ml` extra.
+- [x] `pipeline.verify_claim` now does the real retrieve → gate → entail → sort → grade flow
+      (no longer an alias for `retrieve_candidates`); overrides the top verdict to
+      `NOT_FOUND` when nothing clears WEAK.
+- [x] Two real things found and fixed while building this:
+  - Ollama's `"think": false` field is silently ignored by `qwen3:4b` — switched to
+    appending its native `/no_think` directive, and raised the HTTP timeout to 240s after
+    measuring a ~2-3 minute cold-model-load cost (Ollama unloads after ~5min idle). This
+    was the actual bottleneck, not reasoning quality or "thinking mode" itself.
+  - `_run_entailer` originally dispatched through a dict of function references captured at
+    import time, which silently defeated test mocks and made the "mocked" test suite
+    actually call the real Ollama server (7 minutes instead of under a second). Fixed to
+    dispatch by name each call.
+- [x] Tests: `uv run pytest` → **43 passed, 3 xfailed** (Phase 3's own xfails gone; only
+      Phase 4–6 remain). `ruff check` / `mypy src` clean.
+- [ ] `notebooks/03_entailment_vs_baseline.ipynb` not built — same live-corpus dependency as
+      Phase 1/2's deferred validation, plus a naive-LLM-citation baseline to compare against.
+
 ## Done log
 - 2026-08-05: Phase 0 scaffold built. `uv run pytest` → 5 passed, 10 xfailed. `ruff check`
   and `mypy src` clean.
@@ -132,16 +157,20 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
 - 2026-08-06: Ollama installed (`brew install ollama`, running as a `brew services` daemon)
   and `qwen3:4b` pulled. `rag.llm.get_llm().complete(...)` verified working end-to-end
   against the real local model (not mocked). Phase 0's last open item is now done.
+- 2026-08-06: Phase 3 entailment implemented and live-verified against the real `qwen3:4b`
+  model (see above) — the first phase with an actual live pass, not just mocked units.
+  Caught and fixed two real bugs in the process (cold-load timeout, stale dispatch dict).
 
 ## Next up
-- Phase 3 (`docs/05-phase-3-entailment.md`) can now build its LLM-as-entailer path against a
-  real, running `qwen3:4b` — Ollama is no longer a blocker.
-- Still deferred from Phase 1: live validation (`uv sync --extra ml`, a real S2 API key,
-  running `notebooks/01_retrieval_sanity.ipynb` against real APIs, filling in
-  `data/eval/test_claims.jsonl` and the 3 `RETRACTED` rows in `existence_gold.jsonl` with
-  real data). None of this blocks writing more code, only blocks *proving* Phases 1–2 work
-  end-to-end — worth doing before the thesis write-up leans on either exit criteria.
-- Still blocked on: S2 API key, `CONTACT_EMAIL`.
+- Phase 4 (`docs/06-phase-4-draft-audit.md`) is the next unbuilt phase — ingest a real draft
+  and audit (claim, citation) pairs, reusing `verify_claim` and `fuzzy_match_existence`.
+- Still deferred from Phase 1/2: live validation of retrieval/existence against real network
+  APIs (`uv sync --extra ml`, a real S2 API key, running `notebooks/01_retrieval_sanity.ipynb`,
+  filling in `data/eval/test_claims.jsonl` and the 3 `RETRACTED` rows in
+  `existence_gold.jsonl`). None of this blocks writing more code, only blocks *proving*
+  Phases 1–2 work end-to-end — worth doing in one batch once the S2 key arrives, since it'll
+  also produce the `data/eval/` gold data Phase 3's own eval notebook needs.
+- Still blocked on: S2 API key (applied for, pending), `CONTACT_EMAIL` (now set).
 
 ## Decisions made
 - Stack locked per `01-architecture.md` (Qdrant embedded, SQLite, SPECTER2+BGE-M3, graded

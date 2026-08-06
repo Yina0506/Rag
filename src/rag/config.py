@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     text_embed_model: str = "BAAI/bge-m3"
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
 
+    # --- entailment (Phase 3) ---
+    entailment_backend: str = "llm"  # llm (Ollama, default) | nli (DeBERTa cross-encoder)
+    nli_model: str = "cross-encoder/nli-deberta-v3-base"
+
     # --- storage ---
     cache_dir: str = "data/cache"
     sqlite_path: str = "data/rag.sqlite3"
