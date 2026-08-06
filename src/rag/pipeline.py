@@ -4,7 +4,7 @@ wires retrieval -> existence gate -> entailment together, per module.
 Implement incrementally, one phase at a time (docs/03..08):
 - verify_claim          Phase 1 (retrieval-only) -> Phase 2 (+ gate) -> Phase 3 (+ entailment, done)
 - audit_draft           Phase 4 (done)
-- extract_limitations   Phase 5
+- extract_limitations   Phase 5 (done)
 - discover_directions   Phase 6
 """
 
@@ -118,8 +118,25 @@ def audit_draft(path: str, bib_path: str | None = None) -> dict:
 
 
 def extract_limitations(paper_id: str) -> list[Limitation]:
-    """Phase 5: stated + implicit limitations for one paper."""
-    raise NotImplementedError("Phase 5: limitations/extract.py")
+    """Resolve a paper by id, fetch full text if an OA PDF can be found
+    (falls back to abstract-only otherwise — `extract_stated` just finds
+    fewer/no sections, which correctly triggers the implicit path), and
+    extract stated + implicit limitations."""
+    from rag.limitations.extract import extract_limitations as _extract
+    from rag.retrieval.fulltext import fetch_full_text
+    from rag.retrieval.sources import get_paper
+
+    paper = get_paper(paper_id)
+    if paper is None:
+        return []
+
+    sections = fetch_full_text(paper)
+    full_text = (
+        "\n".join(f"{heading}\n{text}" for heading, text in sections.items())
+        if sections
+        else (paper.abstract or "")
+    )
+    return _extract(paper, full_text)
 
 
 def discover_directions(field_query: str) -> list[Direction]:

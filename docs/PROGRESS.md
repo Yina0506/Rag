@@ -2,7 +2,7 @@
 
 > Update this every session. It's the first thing the next session reads.
 
-## Current phase: **Phase 4 — Draft Audit** (done, live-verified end-to-end; PDF/GROBID path untested)
+## Current phase: **Phase 5 — Limitation Extraction** (done; GROBID full-text path untested, same gap as Phase 4's PDF path)
 
 ## Field definition for Pillars B/C
 **The intersection: evaluation of LLM / neural poetry generation, with emphasis on Chinese
@@ -172,6 +172,37 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
 - [x] Tests: `uv run pytest` → **57 passed, 2 xfailed** (only Phase 5-6 remain). `ruff check`
       / `mypy src` clean.
 
+## Phase 5 tasks (limitation extraction — see `docs/07-phase-5-limitation-extraction.md`)
+- [x] `retrieval/fulltext.py` — arXiv/Unpaywall full-text fetch + TEI section parsing +
+      disk cache. Shares a new `retrieval/grobid_client.py` with `audit/grobid.py` (Phase 4)
+      instead of duplicating the GROBID HTTP call — refactored `audit/grobid.py` to use it,
+      re-ran Phase 4's tests to confirm no regression.
+- [x] `rag/textutils.py` — shared sentence splitter, extracted from `audit/draft.py` (which
+      now imports it too) since Phase 5 needed the same punctuation-based splitting logic.
+- [x] `limitations/extract.py` — `extract_stated` (heading-region extraction),
+      `extract_implicit` (both BAGELS mechanisms: borrow similar papers' own stated
+      limitations via their full text, and flag later papers that CONTRADICT a claim),
+      `extract_limitations` (orchestrates both, gated by an "underreporting" heuristic:
+      implicit extraction only runs when stated limitations look sparse), `_dedupe`
+      (difflib text-similarity, no `ml` extra needed), topic embedding via `retrieval.embed`.
+- [x] `pipeline.extract_limitations(paper_id)` resolves the paper, tries full text, falls
+      back to abstract-only, delegates to `limitations.extract.extract_limitations`.
+- [x] Tests: `uv run pytest` → **81 passed, 1 xfailed** (only Phase 6 remains). `ruff check`
+      / `mypy src` clean.
+- [x] Partial live validation: `_find_similar_papers` against real S2 (correct results,
+      correct self-exclusion once given a real S2 id); contradiction detection reuses
+      Phase 3's live-verified entailer directly. A live run surfaced a genuine small-model
+      precision limit — qwen3:4b missed a contradiction phrased indirectly ("the *original*
+      method" vs. "our proposed method") but caught the same contradiction once reworded
+      unambiguously. Documented as expected behavior (Phase 3 already flagged this), not a
+      bug — real thesis material on entailer disagreement/misses.
+- [ ] **Not live-tested**: full-text fetch and mechanism (a) (borrowing similar papers'
+      stated limitations) both depend on GROBID, which isn't running — same gap as Phase 4's
+      PDF path, do both together once GROBID is up.
+- [ ] OpenReview-comment gold set for validating the extractor — not built; needs real,
+      specific source data (actual OpenReview papers + their reviewer comments), not
+      something to fabricate from memory.
+
 ## Done log
 - 2026-08-05: Phase 0 scaffold built. `uv run pytest` → 5 passed, 10 xfailed. `ruff check`
   and `mypy src` clean.
@@ -190,19 +221,28 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
   end-to-end against real S2/Crossref/Ollama (see above), which also confirmed core Phase
   1-2 mechanisms (S2 search, Crossref fuzzy-match) work against real data. Caught and fixed
   two more real bugs (404 handling, DOI-registry-mismatch abstract fetch).
+- 2026-08-06: Phase 5 limitation extraction implemented (see above): stated-limitation
+  section extraction, both BAGELS-style implicit mechanisms, dedup, topic embedding, and
+  full-text ingestion plumbing (arXiv/Unpaywall/GROBID). Partial live validation (similar-
+  paper retrieval, contradiction detection via the already-proven entailer); GROBID-dependent
+  full-text fetch still unverified, same as Phase 4's PDF path.
 
 ## Next up
-- Phase 5 (`docs/07-phase-5-limitation-extraction.md`) is the next unbuilt phase — stated +
-  implicit limitation extraction, and the first phase needing full-text (not abstract-only)
-  retrieval.
-- Remaining live-validation gaps, now smaller: `uv sync --extra ml` (embeddings/reranking/NLI
-  entailer still untested against real weights), running
-  `notebooks/01_retrieval_sanity.ipynb` and `03_entailment_vs_baseline.ipynb`, seeding real
-  rows into `data/eval/test_claims.jsonl` and the 3 `RETRACTED` rows in
-  `existence_gold.jsonl` (a real retracted DOI still needed — today's live run didn't happen
-  to hit one), and testing the GROBID/PDF path (needs `docker compose --profile phase5 up`).
-- Ollama's cold-load latency (~2-3min after ~5min idle, see Phase 3) made several of today's
-  live calls slow — worth keeping in mind for Phase 5/6, which will call the LLM more.
+- Phase 6 (`docs/08-phase-6-direction-discovery.md`) is the last unbuilt phase — aggregate
+  limitations across a field corpus, cluster into candidate directions (HDBSCAN, `ml`/
+  `cluster` extras), and check openness via the citation graph + entailment. This is the
+  most novel part of the thesis per `docs/10-related-work.md` — worth extra care.
+- Growing pile of deferred live validation, all pointing at the same two missing pieces:
+  (1) `uv sync --extra ml` (embeddings/reranking/NLI entailer/HDBSCAN clustering all still
+  untested against real weights) and (2) a running GROBID instance (`docker compose
+  --profile phase5 up grobid`, needed for both Phase 4's PDF path and Phase 5's full-text
+  fetch). Doing both together in one pass, once Phase 6 is also done, would validate the
+  most remaining ground per unit of effort. Also still open: seeding real rows into
+  `data/eval/test_claims.jsonl`, the 3 `RETRACTED` rows in `existence_gold.jsonl`, and the
+  OpenReview-comment gold set for Phase 5.
+- Ollama's cold-load latency (~2-3min after ~5min idle, see Phase 3) made several live calls
+  slow this session — worth keeping in mind for Phase 6, which will call the LLM for cluster
+  labeling too.
 
 ## Decisions made
 - Stack locked per `01-architecture.md` (Qdrant embedded, SQLite, SPECTER2+BGE-M3, graded

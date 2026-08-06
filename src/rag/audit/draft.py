@@ -26,11 +26,11 @@ import re
 import bibtexparser
 
 from rag.models import AuditFinding, Claim, ExistenceStatus, Grade, Paper, Verdict
+from rag.textutils import split_sentences
 
 _CITE_COMMAND = re.compile(
     r"\\(?:cite|citep|citet|citeauthor|citeyear|parencite|textcite)\{([^}]*)\}"
 )
-_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z\\])")
 _LATEX_COMMENT = re.compile(r"(?<!\\)%.*")
 
 _SYMBOLS = {
@@ -85,8 +85,7 @@ def parse_tex_citations(tex_text: str) -> list[tuple[str, str]]:
     text = _LATEX_COMMENT.sub("", tex_text)
     pairs: list[tuple[str, str]] = []
     for paragraph in re.split(r"\n\s*\n", text):
-        paragraph = " ".join(paragraph.split())
-        for sentence in _SENTENCE_SPLIT.split(paragraph):
+        for sentence in split_sentences(paragraph):
             keys_in_sentence = [
                 key.strip()
                 for match in _CITE_COMMAND.finditer(sentence)

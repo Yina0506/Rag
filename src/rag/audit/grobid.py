@@ -13,25 +13,9 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 
-import httpx
-
-from rag.config import settings
 from rag.models import Paper
-
-_TEI_NS = {"tei": "http://www.tei-c.org/ns/1.0"}
-
-
-def _fetch_tei(pdf_path: str) -> str:
-    with open(pdf_path, "rb") as f:
-        files = {"input": (pdf_path, f, "application/pdf")}
-        resp = httpx.post(
-            f"{settings.grobid_url}/api/processFulltextDocument",
-            files=files,
-            data={"segmentSentences": "1"},
-            timeout=180,
-        )
-    resp.raise_for_status()
-    return resp.text
+from rag.retrieval.grobid_client import TEI_NS as _TEI_NS
+from rag.retrieval.grobid_client import fetch_tei as _fetch_tei
 
 
 def _parse_bibliography(root: ET.Element) -> dict[str, Paper]:
