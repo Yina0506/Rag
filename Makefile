@@ -1,4 +1,4 @@
-.PHONY: setup test lint fmt run docker-up docker-down
+.PHONY: setup test lint fmt run ui docker-up docker-down
 
 setup:
 	uv sync
@@ -16,6 +16,9 @@ fmt:
 
 run:
 	uv run python -m rag
+
+ui:
+	uv run streamlit run src/rag/ui/app.py
 
 docker-up:
 	docker compose up --build

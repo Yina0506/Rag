@@ -54,8 +54,9 @@ RAG/
 │   ├── verify/         ← existence gate (Crossref), entailment (LLM + NLI backends)
 │   ├── audit/           ← draft audit (.bib/.tex/PDF → per-citation report)
 │   ├── limitations/      ← stated + implicit limitation extraction
-│   └── directions/        ← clustering + openness (research-direction discovery)
-├── tests/                 ← mirrors src/rag/, 98 tests, no network/heavy deps required
+│   ├── directions/        ← clustering + openness (research-direction discovery)
+│   └── ui/                 ← Streamlit app (thin presentation layer over pipeline.py)
+├── tests/                 ← mirrors src/rag/, 102 tests, no network/heavy deps required
 ├── data/                  ← gitignored except data/eval/ (versioned gold sets)
 ├── notebooks/
 ├── pyproject.toml         ← uv-managed; heavy ML deps are optional groups (ml, cluster, eval, ui)
@@ -69,20 +70,29 @@ RAG/
 uv sync                          # core deps (fast, no ML downloads)
 cp .env.example .env             # fill in S2_API_KEY, CONTACT_EMAIL
 brew install ollama && ollama pull qwen3:4b   # local LLM (see docs/PROGRESS.md "LLM decision")
-uv run pytest                    # 98 tests, all mocked — no network/GPU needed
+uv run pytest                    # 102 tests, all mocked — no network/GPU needed
 ```
 
 Heavier pieces are opt-in: `uv sync --extra ml` for real embeddings/reranking/NLI-entailment,
-`--extra cluster` for HDBSCAN, `docker compose --profile phase5 up grobid` for PDF/full-text
-ingestion.
+`--extra cluster` for HDBSCAN, `--extra ui` for the Streamlit app (`make ui`),
+`docker compose --profile phase5 up grobid` for PDF/full-text ingestion.
+
+## UI
+
+`make ui` (or `uv run streamlit run src/rag/ui/app.py`) launches a Streamlit app with four
+tabs mapping to the four pipeline entrypoints: verify a claim, audit a draft's citations,
+extract a paper's limitations, and discover open research directions in a field. It's a
+thin rendering layer — `src/rag/ui/app.py` calls `rag.pipeline` functions and renders the
+result; `styles.py`/`components.py` hold the visual system. This is a first pass, meant to
+be iterated on.
 
 ## Status
 
-All 6 build phases (`docs/03`–`08`) are implemented with passing tests (98 passed, 0
-xfailed; `ruff check` / `mypy src` clean). Each phase has also been partially live-validated
-against real APIs/models where practical — see `docs/PROGRESS.md` for exactly what's proven
-live vs. still mocked-only, and its "Next up" for what's left (mainly: installing the `ml`/
-`cluster` extras, standing up a GROBID instance, and assembling the actual field corpus —
-none of it blocking further code, all of it needed before leaning on the thesis's exit
-criteria). `docs/PROGRESS.md` is the authoritative living tracker; read it before this file
-goes stale again.
+All 6 build phases (`docs/03`–`08`) are implemented with passing tests (102 passed, 0
+xfailed; `ruff check` / `mypy src` clean), and the `ml`/`cluster` extras have been
+live-tested against real weights (three real bugs found and fixed — see `docs/PROGRESS.md`).
+See `docs/PROGRESS.md` for exactly what's proven live vs. still mocked-only, and its
+"Next up" for what's left (mainly: standing up a GROBID instance and assembling the actual
+field corpus — neither blocks further code, both are needed before leaning on the thesis's
+exit criteria). `docs/PROGRESS.md` is the authoritative living tracker; read it before this
+file goes stale again.

@@ -2,9 +2,9 @@
 
 > Update this every session. It's the first thing the next session reads.
 
-## Current phase: **All 6 build phases done; `ml`/`cluster` extras live-validated.**
-Remaining: a running GROBID instance, assembling the actual field corpus, and a Streamlit UI
-(now in progress) — see "Next up."
+## Current phase: **All 6 build phases done; `ml`/`cluster` extras live-validated; v1
+Streamlit UI built.** Remaining: a running GROBID instance and assembling the actual field
+corpus — see "Next up."
 
 ## Field definition for Pillars B/C
 **The intersection: evaluation of LLM / neural poetry generation, with emphasis on Chinese
@@ -262,7 +262,17 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
   realistic logit-scale values. (3) HDBSCAN's default `min_samples` can't extract any cluster
   from a handful of limitations (expected at tiny N, not a bug) — exposed `min_samples` as a
   tunable parameter rather than changing the production default. `docs/03`, `05`, `08` all
-  updated with detail. Started building a Streamlit UI next (see below).
+  updated with detail.
+- 2026-08-06: v1 Streamlit UI built (`src/rag/ui/`) — `app.py` (4 tabs: verify a claim,
+  audit a draft, extract limitations, discover directions), `components.py` (render
+  helpers per data-contract type), `styles.py` (CSS/color system). Thin presentation layer
+  only — no logic beyond "call a pipeline function, render the result," per
+  `01-architecture.md`'s "pipeline is the thesis, not the UI." Smoke-tested two ways: a
+  headless `streamlit run` (HTTP 200, no runtime errors) and 4 `AppTest`-based pytest tests
+  (bare load, tab presence, a mocked interactive flow, and error-handling — pipeline
+  exceptions are caught and shown via `st.error`, not crashes). `uv sync --extra ui` needed
+  to run it (`streamlit>=1.35`, `AppTest` available). This is a first pass meant to be
+  iterated on, not a finished design.
 
 ## Next up — no more unbuilt phases; this is now a live-validation and eval punch list
 - **A running GROBID instance** (`docker compose --profile phase5 up grobid`): unblocks
@@ -274,8 +284,10 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
   remaining chunk of work — everything upstream of it is ready to consume it.
 - Smaller open items: seed real rows into `data/eval/test_claims.jsonl` and the 3
   `RETRACTED` rows in `existence_gold.jsonl`; the OpenReview-comment gold set for Phase 5.
-- **Streamlit UI**: now being built (per `01-architecture.md`'s locked stack choice) — see
-  the `ui/` app and recent commits for what's live.
+- **Streamlit UI**: v1 built (`src/rag/ui/`), explicitly meant to be iterated on — visual
+  design, more result detail (e.g. `AuditFinding`'s Markdown report rendering), and caching
+  live calls (`st.cache_data`) so re-running a query during dev doesn't always hit the
+  network are the obvious next passes.
 - Ollama's cold-load latency (~2-3min after ~5min idle, see Phase 3) made several live calls
   slow this session — plan batch/eval runs around keeping the model warm (a periodic
   keep-alive request) rather than letting it go idle between calls.

@@ -39,5 +39,6 @@ htmlcov/
 # OS
 .DS_Store
 
-# Claude Code local settings (machine-specific, not project config)
-.claude/settings.local.json
+# Claude Code local settings (machine-specific, auto-generated permission
+# allowlists from session tool approvals — not intentional project config)
+.claude/
