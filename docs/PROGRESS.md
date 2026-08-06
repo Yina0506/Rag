@@ -302,6 +302,18 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
 - Ollama's cold-load latency (~2-3min after ~5min idle, see Phase 3) made several live calls
   slow this session — plan batch/eval runs around keeping the model warm (a periodic
   keep-alive request) rather than letting it go idle between calls.
+- **New, live-observed: S2 search query quality.** After the dimension-mismatch fix,
+  `verify_claim("Transformers rely on attention instead of recurrence.")` returned 2 real
+  but *topically unrelated* papers (a video-diffusion paper, a change-detection paper) — S2's
+  `/paper/search` is closer to keyword matching than semantic search, and feeding it a full
+  natural-language claim sentence doesn't reliably surface the actually-relevant paper (e.g.
+  "Attention Is All You Need," findable with a shorter, title-like query — confirmed
+  separately). Not a bug: the existence gate + entailer correctly refused to claim support
+  (graded CONTRADICTS/NOT_FOUND rather than inventing a match) — this is the tool doing
+  exactly what it's designed to do when retrieval quality is the weak link. Worth improving
+  later: query rewriting/keyword extraction before hitting S2, or leaning more on the vector
+  rerank stage — but reranking can only reorder what S2's keyword search already returned,
+  so if the right paper isn't in that candidate set at all, no downstream stage recovers it.
 
 ## Decisions made
 - Stack locked per `01-architecture.md` (Qdrant embedded, SQLite, SPECTER2+BGE-M3, graded
