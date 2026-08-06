@@ -58,6 +58,22 @@ protein-folding one (score 0.00002). **Real finding, not just confirmation:**
 `settings.paper_embed_model` to `sentence-transformers/allenai-specter` (original SPECTER,
 same citation-similarity objective, properly packaged for direct loading) — same 768-dim
 output, live-verified working. See `retrieval/embed.py` for detail.
+
+**Update 2026-08-06 (later still): real bug found running `retrieve_candidates` fully live
+for the first time** (via the UI — user reported "Always return: No candidate papers found
+at all."). Root cause: `retrieval/index.py` indexed papers with `embed_paper` (SPECTER,
+768-dim) but `pipeline.retrieve_candidates` queries the index with `embed_text` (BGE-M3,
+1024-dim) — two different models' vector spaces, dimensionally incompatible
+(`ValueError: shapes (n,768) and (1024,) not aligned`). This existed since Phase 1 but was
+invisible in unit tests, which always mock the embedding calls — and even this session's own
+earlier live tests of `embed_paper`/`embed_text` individually didn't catch it, since they
+never ran the *combined* index-then-search path. Fixed: papers are now indexed with
+`embed_text` too, so the query and document vectors share one space; `VECTOR_SIZE` updated
+to 1024. `embed_paper`/SPECTER stays available for a future paper-to-paper similarity use
+case, just isn't used for this index anymore. Added a regression-guard test
+(`test_upsert_uses_embed_text_not_embed_paper`) so this can't silently reappear. Confirmed
+fixed: `verify_claim` now returns real graded verdicts instead of an empty list.
+
 **Still not done:** the full exit criteria (10 hand-picked claims, ≥5 relevant papers each,
 via the notebook) — the pieces it needs are now all individually proven, just not run
 together as the notebook end-to-end yet.

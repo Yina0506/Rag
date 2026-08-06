@@ -273,6 +273,17 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
   exceptions are caught and shown via `st.error`, not crashes). `uv sync --extra ui` needed
   to run it (`streamlit>=1.35`, `AppTest` available). This is a first pass meant to be
   iterated on, not a finished design.
+- 2026-08-06: **user tried the UI and hit a real bug** — "Verify a Claim" always returned
+  "No candidate papers found at all." Root cause: `retrieval/index.py` indexed papers with
+  SPECTER (768-dim) but queried with BGE-M3 (1024-dim) — dimensionally incompatible vector
+  spaces, existing since Phase 1, invisible to unit tests (which mock embeddings) and to
+  this session's own earlier live tests (which tested `embed_paper`/`embed_text`
+  individually, never the combined index-then-search path). First time `retrieve_candidates`
+  ran fully live end-to-end. Fixed: papers now indexed with `embed_text` too; `VECTOR_SIZE`
+  updated to 1024; stale local `data/qdrant` cache cleared (was built with the old
+  dimension); regression-guard test added. Confirmed fixed live. See `docs/03` for detail.
+  **Takeaway:** the UI turned out to be a genuinely effective live-validation tool in its
+  own right, not just a demo surface — worth routing more manual testing through it.
 
 ## Next up — no more unbuilt phases; this is now a live-validation and eval punch list
 - **A running GROBID instance** (`docker compose --profile phase5 up grobid`): unblocks

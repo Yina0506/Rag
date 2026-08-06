@@ -40,7 +40,15 @@ def _text_model():
 
 
 def embed_paper(title: str, abstract: str | None) -> list[float]:
-    """SPECTER embedding for paper-level similarity (title + abstract)."""
+    """SPECTER embedding for paper-level similarity (title + abstract).
+
+    Not currently used by `retrieval/index.py`'s Qdrant index — that index is
+    queried with `embed_text` (a claim), so it's indexed with `embed_text`
+    too, to keep query and document vectors in the same space (see
+    `index.py`'s module docstring for the live-caught dimension-mismatch bug
+    this fixed). Kept here for a genuine paper-to-paper similarity use case,
+    should one come up.
+    """
     text = f"{title}\n{abstract or ''}".strip()
     vector = _paper_model().encode(text, normalize_embeddings=True)
     return vector.tolist()

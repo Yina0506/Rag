@@ -4,8 +4,20 @@ Two modes via `settings.qdrant_mode` (docs/01-architecture.md):
 - "embedded": local on-disk Qdrant at `data/qdrant` — no docker, default for dev.
 - "server": talk to the `qdrant` service from docker-compose.yml.
 
-Paper vectors are SPECTER (`retrieval.embed.embed_paper`); `VECTOR_SIZE` must
-match that model's output dimension.
+**Live-caught bug**: papers were indexed with `embed_paper` (SPECTER, 768-dim)
+but `pipeline.retrieve_candidates` queries with `embed_text` (BGE-M3,
+1024-dim) — two different models' vector spaces aren't directly comparable,
+and Qdrant can't even compute a distance between mismatched dimensions
+(`ValueError: shapes (n,768) and (1024,) not aligned`). This was invisible
+in unit tests (which always mock the embedding calls) and wasn't caught by
+this session's earlier live tests of `embed_paper`/`embed_text` individually
+— it only surfaced once `retrieve_candidates` ran fully live end-to-end for
+the first time. Fixed by indexing papers with `embed_text` too, so the
+query vector and the indexed document vectors share one embedding space.
+`embed_paper` (SPECTER) is still available in `retrieval/embed.py` for a
+genuine paper-to-paper similarity use case if one comes up (e.g. upgrading
+`limitations._find_similar_papers` from keyword search to vector search) —
+just not used for this index.
 """
 
 from __future__ import annotations
@@ -17,9 +29,9 @@ from qdrant_client.http import models as qm
 
 from rag.config import settings
 from rag.models import Candidate, Paper
-from rag.retrieval.embed import embed_paper
+from rag.retrieval.embed import embed_text
 
-VECTOR_SIZE = 768  # sentence-transformers/allenai-specter embedding dimension
+VECTOR_SIZE = 1024  # BAAI/bge-m3 embedding dimension — must match the query embedding space
 
 
 def get_client() -> QdrantClient:
@@ -43,7 +55,7 @@ def upsert_papers(papers: list[Paper], client: QdrantClient | None = None) -> No
     points = [
         qm.PointStruct(
             id=_point_id(paper.id),
-            vector=embed_paper(paper.title, paper.abstract),
+            vector=embed_text(f"{paper.title}\n{paper.abstract or ''}".strip()),
             payload=paper.model_dump(),
         )
         for paper in papers
