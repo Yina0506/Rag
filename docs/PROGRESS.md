@@ -2,7 +2,7 @@
 
 > Update this every session. It's the first thing the next session reads.
 
-## Current phase: **Phase 3 — Entailment** (LLM-as-entailer live-verified; NLI backend + eval notebook pending)
+## Current phase: **Phase 4 — Draft Audit** (done, live-verified end-to-end; PDF/GROBID path untested)
 
 ## Field definition for Pillars B/C
 **The intersection: evaluation of LLM / neural poetry generation, with emphasis on Chinese
@@ -146,6 +146,32 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
 - [ ] `notebooks/03_entailment_vs_baseline.ipynb` not built — same live-corpus dependency as
       Phase 1/2's deferred validation, plus a naive-LLM-citation baseline to compare against.
 
+## Phase 4 tasks (draft audit — see `docs/06-phase-4-draft-audit.md` for detail)
+- [x] `audit/draft.py` — `.bib`/`.tex` ingestion (`bibtexparser` + sentence-level `\cite`
+      regex), `resolve_bib_paper` (reuses Phase 2's existence gate exactly as planned),
+      `_with_abstract` (evidence fetch, with a title-search fallback — see bug below),
+      `audit_pair`/`audit` orchestration, JSON + Markdown report output.
+- [x] `audit/grobid.py` — PDF→TEI via GROBID, split into its own module since it's the
+      heavy/optional path. **Code complete, not live-tested** (no GROBID instance running).
+- [x] LangGraph: deliberately **not** introduced — the per-pair flow is linear, no
+      branching/cyclic logic to justify it. Documented as a decision, not skipped work.
+- [x] `tests/fixtures/sample_draft.{tex,bib}` plants all four cases (good/fabricated/
+      retracted/mismatched); `tests/audit/test_draft.py` — 11 tests.
+- [x] **Live-validated end-to-end** — the real S2 API key arrived mid-session. Ran the whole
+      chain against real APIs for the first time: S2 search, Crossref fuzzy-match existence,
+      abstract fetch, and Ollama entailment all correctly handled a real paper ("Attention Is
+      All You Need" → ✅ SUPPORTS with a justification quoting the real abstract) and a
+      fabricated one (→ 🚫 NOT_FOUND). This also live-validates chunks of Phases 1 and 2 that
+      were previously mock-only — see their docs for what's now confirmed vs. still open.
+- [x] Two real bugs found via that live run, both fixed with regression tests:
+  - `sources.get_paper` raised on a 404 instead of returning `None` per its own signature —
+    crashed the very first time a Crossref-resolved DOI wasn't the one S2 indexes under.
+  - DOI-only abstract lookup silently produced an honest-but-useless NEUTRAL for a paper that
+    unambiguously exists (S2 didn't have that specific DOI indexed) — added a title-search
+    fallback in `_with_abstract`; the same live case then correctly produced SUPPORTS.
+- [x] Tests: `uv run pytest` → **57 passed, 2 xfailed** (only Phase 5-6 remain). `ruff check`
+      / `mypy src` clean.
+
 ## Done log
 - 2026-08-05: Phase 0 scaffold built. `uv run pytest` → 5 passed, 10 xfailed. `ruff check`
   and `mypy src` clean.
@@ -160,30 +186,44 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
 - 2026-08-06: Phase 3 entailment implemented and live-verified against the real `qwen3:4b`
   model (see above) — the first phase with an actual live pass, not just mocked units.
   Caught and fixed two real bugs in the process (cold-load timeout, stale dispatch dict).
+- 2026-08-06: S2 API key arrived; Phase 4 draft audit implemented and live-validated
+  end-to-end against real S2/Crossref/Ollama (see above), which also confirmed core Phase
+  1-2 mechanisms (S2 search, Crossref fuzzy-match) work against real data. Caught and fixed
+  two more real bugs (404 handling, DOI-registry-mismatch abstract fetch).
 
 ## Next up
-- Phase 4 (`docs/06-phase-4-draft-audit.md`) is the next unbuilt phase — ingest a real draft
-  and audit (claim, citation) pairs, reusing `verify_claim` and `fuzzy_match_existence`.
-- Still deferred from Phase 1/2: live validation of retrieval/existence against real network
-  APIs (`uv sync --extra ml`, a real S2 API key, running `notebooks/01_retrieval_sanity.ipynb`,
-  filling in `data/eval/test_claims.jsonl` and the 3 `RETRACTED` rows in
-  `existence_gold.jsonl`). None of this blocks writing more code, only blocks *proving*
-  Phases 1–2 work end-to-end — worth doing in one batch once the S2 key arrives, since it'll
-  also produce the `data/eval/` gold data Phase 3's own eval notebook needs.
-- Still blocked on: S2 API key (applied for, pending), `CONTACT_EMAIL` (now set).
+- Phase 5 (`docs/07-phase-5-limitation-extraction.md`) is the next unbuilt phase — stated +
+  implicit limitation extraction, and the first phase needing full-text (not abstract-only)
+  retrieval.
+- Remaining live-validation gaps, now smaller: `uv sync --extra ml` (embeddings/reranking/NLI
+  entailer still untested against real weights), running
+  `notebooks/01_retrieval_sanity.ipynb` and `03_entailment_vs_baseline.ipynb`, seeding real
+  rows into `data/eval/test_claims.jsonl` and the 3 `RETRACTED` rows in
+  `existence_gold.jsonl` (a real retracted DOI still needed — today's live run didn't happen
+  to hit one), and testing the GROBID/PDF path (needs `docker compose --profile phase5 up`).
+- Ollama's cold-load latency (~2-3min after ~5min idle, see Phase 3) made several of today's
+  live calls slow — worth keeping in mind for Phase 5/6, which will call the LLM more.
 
 ## Decisions made
 - Stack locked per `01-architecture.md` (Qdrant embedded, SQLite, SPECTER2+BGE-M3, graded
   entailment, Streamlit UI, LangGraph only from Phase 4).
 - Field, English-only scope, and Qwen-default LLM — recorded above.
+- **Deviation from the architecture doc:** LangGraph was NOT introduced at Phase 4 despite
+  `01-architecture.md` gating it to "when Phase 4 needs multi-step audit." The actual
+  per-pair audit flow turned out to be a straight linear pipeline (same shape as Phase 3's
+  plain-function `verify_claim`), so adding a graph framework would've been unjustified
+  weight. See docs/06-phase-4-draft-audit.md for the reasoning; revisit if a later phase's
+  control flow genuinely needs branching/cycles.
 
 ## Blockers / waiting on Julius
-- [ ] Semantic Scholar API key in `.env` (request form -> key by email; `x-api-key` header)
-- [ ] Contact email for OpenAlex/Crossref polite pools
+- [x] Semantic Scholar API key in `.env` — arrived and live-tested 2026-08-06.
+- [x] Contact email for OpenAlex/Crossref polite pools — set 2026-08-06.
 - [x] Ollama installed (v0.32.5 via Homebrew, running as a background service) +
       `qwen3:4b` pulled and smoke-tested through `llm.py` — 2026-08-06.
 - [x] Docker installed (v29.2.1) — `docker-compose.yml` runs Qdrant now; GROBID is
       behind the `phase5` compose profile, not needed until then.
+- All original blockers are now clear. Only remaining external dependency is a running
+  GROBID instance for the PDF ingestion path, whenever that's needed.
 
 ## Parking lot (ideas, don't act yet)
 - Multilingual / Chinese-language corpus — deferred; would directly address the stated

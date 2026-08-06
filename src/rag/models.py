@@ -62,6 +62,19 @@ class Verdict(BaseModel):
     justification: str
 
 
+class AuditFinding(BaseModel):
+    """One (claim, citation) pair from a draft audit (Phase 4). `verdict` is
+    None only when the existence gate already rejected the citation — there's
+    no evidence to grade a claim against a paper that doesn't exist."""
+
+    claim_text: str
+    citation_key: str
+    existence: ExistenceStatus
+    symbol: str  # "✅" | "⚠️" | "❌" | "🚫" — see audit.draft for the mapping
+    verdict: Verdict | None = None
+    suggested_citation: Paper | None = None
+
+
 class Limitation(BaseModel):
     paper_id: str
     text: str

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import httpx
+
 from rag.retrieval import sources
 
 S2_SEARCH_RESPONSE = {
@@ -74,6 +76,46 @@ def test_search_papers_openalex_reconstructs_abstract_and_doi(mocker) -> None:
     assert paper.doi == "10.1000/xyz789"
     assert paper.venue == "LREC"
     assert paper.abstract == "We study poetry"
+
+
+def test_get_paper_parses_response(mocker) -> None:
+    mocker.patch.object(sources, "cached_get", return_value=S2_SEARCH_RESPONSE["data"][0])
+
+    paper = sources.get_paper("abc123")
+
+    assert paper is not None
+    assert paper.id == "s2:abc123"
+
+
+def test_get_paper_returns_none_on_404_instead_of_raising(mocker) -> None:
+    """Regression: found live against a real DOI that Crossref knows but S2
+    doesn't index — `get_paper` must degrade to None, not blow up callers
+    like `audit.draft._with_abstract` that treat "no abstract" as fine."""
+
+    def _raise_404(*args, **kwargs):
+        request = httpx.Request("GET", "https://api.semanticscholar.org/x")
+        response = httpx.Response(404, request=request)
+        raise httpx.HTTPStatusError("not found", request=request, response=response)
+
+    mocker.patch.object(sources, "cached_get", side_effect=_raise_404)
+
+    assert sources.get_paper("DOI:10.9999/not-indexed-by-s2") is None
+
+
+def test_get_paper_propagates_non_404_errors(mocker) -> None:
+    def _raise_500(*args, **kwargs):
+        request = httpx.Request("GET", "https://api.semanticscholar.org/x")
+        response = httpx.Response(500, request=request)
+        raise httpx.HTTPStatusError("server error", request=request, response=response)
+
+    mocker.patch.object(sources, "cached_get", side_effect=_raise_500)
+
+    try:
+        sources.get_paper("whatever")
+        raised = False
+    except httpx.HTTPStatusError:
+        raised = True
+    assert raised
 
 
 def test_looks_english_flags_mostly_non_ascii_abstract() -> None:

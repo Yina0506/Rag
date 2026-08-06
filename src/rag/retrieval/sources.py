@@ -8,6 +8,8 @@ English only for v1 (see docs/PROGRESS.md scope decision).
 
 from __future__ import annotations
 
+import httpx
+
 from rag.config import settings
 from rag.http import cached_get
 from rag.models import Paper
@@ -49,13 +51,24 @@ def search_papers(query: str, limit: int = 20) -> list[Paper]:
 
 
 def get_paper(paper_id: str) -> Paper | None:
-    """Fetch one paper by bare S2 id or DOI (no `s2:`/`doi:` prefix)."""
-    data = cached_get(
-        f"{S2_BASE}/paper/{paper_id}",
-        params={"fields": S2_FIELDS},
-        headers=_s2_headers(),
-        min_interval=1.0,
-    )
+    """Fetch one paper by bare S2 id, or a prefixed external id
+    (`DOI:10.xxx`, `ARXIV:xxxx`, ...). Returns None both when the response
+    lacks a title AND when S2 simply doesn't have this id indexed (a 404 —
+    common for a DOI that Crossref knows but S2 doesn't, e.g. a
+    non-arXiv-registered DOI for an otherwise-indexed paper) — a caller
+    asking "does S2 have this paper" shouldn't have to distinguish those.
+    """
+    try:
+        data = cached_get(
+            f"{S2_BASE}/paper/{paper_id}",
+            params={"fields": S2_FIELDS},
+            headers=_s2_headers(),
+            min_interval=1.0,
+        )
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            return None
+        raise
     return _paper_from_s2(data)
 
 

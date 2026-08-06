@@ -41,14 +41,22 @@ sane by eye.
       exactly the failure mode this project fixes). Fill in from real papers once retrieval
       has been run live, or hand-pick from known papers in the field.
 
+## Live validation update (2026-08-06, via Phase 4's live run)
+
+The S2 API key arrived and `retrieval.sources.search_papers` was live-tested against the real
+API (see docs/06-phase-4-draft-audit.md's live-validation section) — it correctly surfaced
+the real "Attention Is All You Need" among other real, relevant results. This confirms the
+API-search half of Phase 1 works end-to-end. **Still not done:** the full exit criteria (10
+hand-picked claims, ≥5 relevant papers each, via the notebook) and anything needing the `ml`
+extra (SPECTER2/BGE-M3 embedding, reranking) — that path still needs `uv sync --extra ml`.
+
 ## Still open (code complete, not yet validated live)
 
 - Exit criteria ("`verify_claim` returns ≥5 relevant real papers for 10 hand-picked test
   claims") needs: (1) `uv sync --extra ml` to pull torch/sentence-transformers/the three
-  model checkpoints, (2) an `.env` with a working `S2_API_KEY`/`CONTACT_EMAIL` (or run
-  anonymous-pool, slower), (3) the 10 real seed claims above, (4) actually running the
-  notebook. None of this needed unit tests to pass, but exit criteria isn't met until it's
-  done — see `docs/PROGRESS.md`.
+  model checkpoints, (2) the 10 real seed claims below (S2 search itself is now confirmed
+  working — see above), (3) actually running the notebook. None of this needed unit tests to
+  pass, but exit criteria isn't met until it's done — see `docs/PROGRESS.md`.
 - `allenai/specter2` is loaded here as a plain `sentence-transformers` model; true SPECTER2
   behavior needs its proximity adapter via the `adapters` package. Flagged in `embed.py` —
   revisit if paper-similarity quality looks off once real eval is possible.

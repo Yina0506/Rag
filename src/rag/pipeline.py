@@ -3,7 +3,7 @@ wires retrieval -> existence gate -> entailment together, per module.
 
 Implement incrementally, one phase at a time (docs/03..08):
 - verify_claim          Phase 1 (retrieval-only) -> Phase 2 (+ gate) -> Phase 3 (+ entailment, done)
-- audit_draft           Phase 4
+- audit_draft           Phase 4 (done)
 - extract_limitations   Phase 5
 - discover_directions   Phase 6
 """
@@ -108,9 +108,13 @@ def verify_claim(claim: str, k: int = 5) -> list[Verdict]:
     return verdicts
 
 
-def audit_draft(path: str) -> dict:
-    """Phase 4: ingest a draft (PDF/.bib/.tex), audit every (claim, citation) pair."""
-    raise NotImplementedError("Phase 4: audit/draft.py")
+def audit_draft(path: str, bib_path: str | None = None) -> dict:
+    """Ingest a draft (.tex/.bib, or PDF via GROBID) and audit every (claim,
+    citation) pair — see `audit.draft.audit` for the full flow and the
+    ✅/⚠️/❌/🚫 symbol mapping."""
+    from rag.audit.draft import audit
+
+    return audit(path, bib_path=bib_path)
 
 
 def extract_limitations(paper_id: str) -> list[Limitation]:

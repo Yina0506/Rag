@@ -41,6 +41,11 @@ so nothing bypasses it before presentation.
   non-bypassable. Make it a single choke point in `pipeline.py`.
 - Cache Crossref lookups; they're the hot path.
 - Exit criteria is met at the unit-test level (fabricated paper always rejected, retraction
-  detection logic covered, gate wired as the sole path). Not yet validated against real
-  Crossref responses over the network — same live-validation gap as Phase 1, see
-  `docs/PROGRESS.md`.
+  detection logic covered, gate wired as the sole path).
+- **Live-validated 2026-08-06** (via Phase 4's live run, once the S2 key arrived):
+  `fuzzy_match_existence` against real Crossref correctly resolved "Attention Is All You
+  Need" to a real DOI with the correct 8-author list, and correctly returned `None` for a
+  fabricated title. The core existence-gate mechanism is now proven against real data, not
+  just mocks — see docs/06-phase-4-draft-audit.md. Still open: the 3 `RETRACTED` rows in
+  `data/eval/existence_gold.jsonl` still need a real retracted DOI (retraction detection
+  logic itself is unit-tested but not yet exercised against a real retracted paper).

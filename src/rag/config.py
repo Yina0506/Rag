@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     entailment_backend: str = "llm"  # llm (Ollama, default) | nli (DeBERTa cross-encoder)
     nli_model: str = "cross-encoder/nli-deberta-v3-base"
 
+    # --- draft audit (Phase 4) ---
+    # GROBID service for PDF -> TEI (docker-compose's `grobid` service, phase5 profile —
+    # named for when it was first mentioned in docs/02-data-sources.md, but PDF ingestion
+    # is a Phase 4 need too). Not required for .bib/.tex ingestion.
+    grobid_url: str = "http://localhost:8070"
+
     # --- storage ---
     cache_dir: str = "data/cache"
     sqlite_path: str = "data/rag.sqlite3"
