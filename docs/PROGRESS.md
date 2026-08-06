@@ -2,7 +2,8 @@
 
 > Update this every session. It's the first thing the next session reads.
 
-## Current phase: **Phase 5 — Limitation Extraction** (done; GROBID full-text path untested, same gap as Phase 4's PDF path)
+## Current phase: **All 6 build phases done.** Remaining work is live validation at real
+scale (GROBID, `ml`/`cluster` extras, assembling the actual field corpus) — see "Next up."
 
 ## Field definition for Pillars B/C
 **The intersection: evaluation of LLM / neural poetry generation, with emphasis on Chinese
@@ -203,6 +204,27 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
       specific source data (actual OpenReview papers + their reviewer comments), not
       something to fabricate from memory.
 
+## Phase 6 tasks (direction discovery — see `docs/08-phase-6-direction-discovery.md`)
+- [x] `retrieval/sources.py` gained `get_citing_papers` (S2's `/citations` endpoint) — the
+      citation-graph half of the openness check. Live-tested against the real API.
+- [x] `directions/cluster.py` — `cluster_limitations` (HDBSCAN, reuses Phase 5's
+      `topic_embedding` when set), `label_cluster` (LLM-grounded direction statement,
+      **live-verified**: 3 differently-worded limitations correctly collapsed into one
+      accurate sentence), `build_directions` (ranked by distinct-paper-count frequency).
+- [x] `directions/openness.py` — `find_later_papers` (citation graph ∪ topical search, both
+      year-filtered), `check_openness` (entailment-based "does this later paper resolve the
+      gap?", reusing Phase 3's entailer).
+- [x] `pipeline.discover_directions(field_query, corpus_size=20)` wires corpus build →
+      per-paper Phase 5 extraction → cluster → openness → ranked `Direction`s.
+- [x] Tests: `uv run pytest` → **98 passed, 0 xfailed** — every phase now has real passing
+      tests, no more placeholders. `ruff check` / `mypy src` clean.
+- [x] Partial live validation: `get_citing_papers` and `label_cluster` both confirmed against
+      real APIs/model (see docs/08 for detail). `cluster_limitations` (needs `cluster` extra)
+      and a full `discover_directions` run (would compound every prior phase's live-call cost
+      across a whole corpus) not attempted — same category of gap as Phases 1, 4, 5.
+- [ ] UI (field explorer) and retrospective-validation eval — not built, both need
+      infrastructure (Streamlit UI, an actual assembled field corpus) beyond this phase's scope.
+
 ## Done log
 - 2026-08-05: Phase 0 scaffold built. `uv run pytest` → 5 passed, 10 xfailed. `ruff check`
   and `mypy src` clean.
@@ -226,23 +248,29 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
   full-text ingestion plumbing (arXiv/Unpaywall/GROBID). Partial live validation (similar-
   paper retrieval, contradiction detection via the already-proven entailer); GROBID-dependent
   full-text fetch still unverified, same as Phase 4's PDF path.
+- 2026-08-06: Phase 6 direction discovery implemented (see above) — the last unbuilt phase.
+  Aggregate/cluster/openness all done; `get_citing_papers` and `label_cluster` both
+  live-verified. **All 6 build phases are now complete with passing tests (98 passed, 0
+  xfailed).** What's left is live validation at real scale, not more code — see below.
 
-## Next up
-- Phase 6 (`docs/08-phase-6-direction-discovery.md`) is the last unbuilt phase — aggregate
-  limitations across a field corpus, cluster into candidate directions (HDBSCAN, `ml`/
-  `cluster` extras), and check openness via the citation graph + entailment. This is the
-  most novel part of the thesis per `docs/10-related-work.md` — worth extra care.
-- Growing pile of deferred live validation, all pointing at the same two missing pieces:
-  (1) `uv sync --extra ml` (embeddings/reranking/NLI entailer/HDBSCAN clustering all still
-  untested against real weights) and (2) a running GROBID instance (`docker compose
-  --profile phase5 up grobid`, needed for both Phase 4's PDF path and Phase 5's full-text
-  fetch). Doing both together in one pass, once Phase 6 is also done, would validate the
-  most remaining ground per unit of effort. Also still open: seeding real rows into
-  `data/eval/test_claims.jsonl`, the 3 `RETRACTED` rows in `existence_gold.jsonl`, and the
-  OpenReview-comment gold set for Phase 5.
+## Next up — no more unbuilt phases; this is now a live-validation and eval punch list
+- **`uv sync --extra ml` / `--extra cluster`**: embeddings (SPECTER2/BGE-M3), reranking
+  (BGE-reranker), the NLI entailer, and HDBSCAN clustering are all code-complete but
+  untested against real weights. This unblocks: `notebooks/01_retrieval_sanity.ipynb`,
+  `03_entailment_vs_baseline.ipynb`, and a real `cluster_limitations` run.
+- **A running GROBID instance** (`docker compose --profile phase5 up grobid`): unblocks
+  Phase 4's PDF draft-audit path and Phase 5's full-text fetch (+ its "borrow similar
+  papers' limitations" mechanism).
+- **Assembling the actual field corpus** (Chinese-poetry/LLM-generation evaluation, per the
+  field definition above): needed for a real end-to-end `discover_directions` run and the
+  retrospective-validation eval in `docs/08`'s "Evaluation" section. This is the biggest
+  remaining chunk of work — everything upstream of it is ready to consume it.
+- Smaller open items: seed real rows into `data/eval/test_claims.jsonl` and the 3
+  `RETRACTED` rows in `existence_gold.jsonl`; the OpenReview-comment gold set for Phase 5;
+  the Streamlit UI (deliberately deferred this whole build, per `CONVENTIONS.md`).
 - Ollama's cold-load latency (~2-3min after ~5min idle, see Phase 3) made several live calls
-  slow this session — worth keeping in mind for Phase 6, which will call the LLM for cluster
-  labeling too.
+  slow this session — plan batch/eval runs around keeping the model warm (a periodic
+  keep-alive request) rather than letting it go idle between calls.
 
 ## Decisions made
 - Stack locked per `01-architecture.md` (Qdrant embedded, SQLite, SPECTER2+BGE-M3, graded

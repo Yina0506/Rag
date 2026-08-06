@@ -5,7 +5,7 @@ Implement incrementally, one phase at a time (docs/03..08):
 - verify_claim          Phase 1 (retrieval-only) -> Phase 2 (+ gate) -> Phase 3 (+ entailment, done)
 - audit_draft           Phase 4 (done)
 - extract_limitations   Phase 5 (done)
-- discover_directions   Phase 6
+- discover_directions   Phase 6 (done)
 """
 
 from __future__ import annotations
@@ -139,6 +139,25 @@ def extract_limitations(paper_id: str) -> list[Limitation]:
     return _extract(paper, full_text)
 
 
-def discover_directions(field_query: str) -> list[Direction]:
-    """Phase 6: corpus build -> extract -> cluster -> openness -> ranked Directions."""
-    raise NotImplementedError("Phase 6: directions/cluster.py, directions/openness.py")
+def discover_directions(field_query: str, corpus_size: int = 20) -> list[Direction]:
+    """Corpus build -> extract (per paper, Phase 5) -> cluster -> openness ->
+    ranked Directions. `corpus_size` is deliberately small by default — each
+    paper can trigger several similar-paper searches and LLM entailment
+    calls in Phase 5's implicit-extraction path, so this is expensive to run
+    at real field-corpus scale (hundreds-2000 papers, per docs/02-data-sources.md);
+    the bounded-corpus-with-cutoff-year building described there isn't
+    implemented as its own step yet — this just searches `field_query`
+    directly. Revisit if/when running this at real scale."""
+    from rag.directions.cluster import build_directions
+    from rag.directions.openness import check_openness
+    from rag.limitations.extract import extract_limitations as _extract_limitations
+    from rag.retrieval.sources import search_papers
+
+    corpus = search_papers(field_query, limit=corpus_size)
+
+    all_limitations: list[Limitation] = []
+    for paper in corpus:
+        all_limitations.extend(_extract_limitations(paper, paper.abstract or ""))
+
+    directions = build_directions(all_limitations)
+    return [check_openness(direction) for direction in directions]

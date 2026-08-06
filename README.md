@@ -28,7 +28,7 @@ It only reasons over *retrieved* text. Retrieval + a deterministic existence gat
 entailment scoring produce every citation and every verdict. This single rule is what
 makes the tool trustworthy and is the project's thesis.
 
-## Repo layout (target)
+## Repo layout
 
 ```
 RAG/
@@ -47,14 +47,42 @@ RAG/
 │   ├── 10-related-work.md
 │   ├── CONVENTIONS.md        ← coding conventions for AI sessions
 │   └── PROGRESS.md           ← living status tracker — UPDATE EVERY SESSION
-├── src/rag/                  ← package (created in Phase 1)
-├── tests/
-├── data/                     ← gitignored; corpora, indexes, eval sets
+├── src/rag/                  ← the package
+│   ├── config.py, models.py, llm.py, pipeline.py   ← entrypoints + shared contracts
+│   ├── http.py, textutils.py                        ← shared low-level helpers
+│   ├── retrieval/     ← S2/OpenAlex/Crossref clients, Qdrant index, embed/rerank, full text
+│   ├── verify/         ← existence gate (Crossref), entailment (LLM + NLI backends)
+│   ├── audit/           ← draft audit (.bib/.tex/PDF → per-citation report)
+│   ├── limitations/      ← stated + implicit limitation extraction
+│   └── directions/        ← clustering + openness (research-direction discovery)
+├── tests/                 ← mirrors src/rag/, 98 tests, no network/heavy deps required
+├── data/                  ← gitignored except data/eval/ (versioned gold sets)
 ├── notebooks/
-├── pyproject.toml            ← created in Phase 0
-└── .env.example              ← API keys template
+├── pyproject.toml         ← uv-managed; heavy ML deps are optional groups (ml, cluster, eval, ui)
+├── Dockerfile, docker-compose.yml   ← Qdrant + app; GROBID behind a phase5 profile
+└── .env.example           ← copy to .env and fill in (never commit .env)
 ```
+
+## Quickstart
+
+```
+uv sync                          # core deps (fast, no ML downloads)
+cp .env.example .env             # fill in S2_API_KEY, CONTACT_EMAIL
+brew install ollama && ollama pull qwen3:4b   # local LLM (see docs/PROGRESS.md "LLM decision")
+uv run pytest                    # 98 tests, all mocked — no network/GPU needed
+```
+
+Heavier pieces are opt-in: `uv sync --extra ml` for real embeddings/reranking/NLI-entailment,
+`--extra cluster` for HDBSCAN, `docker compose --profile phase5 up grobid` for PDF/full-text
+ingestion.
 
 ## Status
 
-See `docs/PROGRESS.md`. Nothing is built yet — Phase 0 (scaffold) is next.
+All 6 build phases (`docs/03`–`08`) are implemented with passing tests (98 passed, 0
+xfailed; `ruff check` / `mypy src` clean). Each phase has also been partially live-validated
+against real APIs/models where practical — see `docs/PROGRESS.md` for exactly what's proven
+live vs. still mocked-only, and its "Next up" for what's left (mainly: installing the `ml`/
+`cluster` extras, standing up a GROBID instance, and assembling the actual field corpus —
+none of it blocking further code, all of it needed before leaning on the thesis's exit
+criteria). `docs/PROGRESS.md` is the authoritative living tracker; read it before this file
+goes stale again.

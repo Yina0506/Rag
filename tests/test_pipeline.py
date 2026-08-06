@@ -6,7 +6,15 @@ glue, not any one stage's internals (those have their own tests)."""
 from __future__ import annotations
 
 from rag import pipeline
-from rag.models import Candidate, ExistenceStatus, Grade, Paper
+from rag.models import (
+    Candidate,
+    Direction,
+    ExistenceStatus,
+    Grade,
+    Limitation,
+    LimitationType,
+    Paper,
+)
 
 
 def test_retrieve_candidates_returns_empty_when_no_papers_found(mocker) -> None:
@@ -117,3 +125,53 @@ def test_verify_claim_does_not_override_when_best_clears_weak(sample_paper, mock
 
     assert verdicts[0].grade == Grade.WEAK
     assert verdicts[0].justification == "weakly related"
+
+
+def test_extract_limitations_returns_empty_when_paper_not_found(mocker) -> None:
+    mocker.patch("rag.retrieval.sources.get_paper", return_value=None)
+
+    assert pipeline.extract_limitations("s2:missing") == []
+
+
+def test_extract_limitations_falls_back_to_abstract_when_no_full_text(sample_paper, mocker) -> None:
+    mocker.patch("rag.retrieval.sources.get_paper", return_value=sample_paper)
+    mocker.patch("rag.retrieval.fulltext.fetch_full_text", return_value=None)
+    extract_mock = mocker.patch("rag.limitations.extract.extract_limitations", return_value=[])
+
+    pipeline.extract_limitations("s2:x")
+
+    extract_mock.assert_called_once_with(sample_paper, sample_paper.abstract)
+
+
+def test_extract_limitations_flattens_sections_when_available(sample_paper, mocker) -> None:
+    mocker.patch("rag.retrieval.sources.get_paper", return_value=sample_paper)
+    mocker.patch(
+        "rag.retrieval.fulltext.fetch_full_text",
+        return_value={"Limitations": "The dataset is small."},
+    )
+    extract_mock = mocker.patch("rag.limitations.extract.extract_limitations", return_value=[])
+
+    pipeline.extract_limitations("s2:x")
+
+    full_text_arg = extract_mock.call_args[0][1]
+    assert "Limitations" in full_text_arg
+    assert "The dataset is small." in full_text_arg
+
+
+def test_discover_directions_wires_corpus_extract_cluster_and_openness(mocker) -> None:
+    paper = Paper(id="s2:p1", title="Field Paper", abstract="abstract text")
+    mocker.patch("rag.retrieval.sources.search_papers", return_value=[paper])
+    limitation = Limitation(paper_id="s2:p1", text="a gap", type=LimitationType.STATED)
+    mocker.patch("rag.limitations.extract.extract_limitations", return_value=[limitation])
+    unopened = Direction(
+        label="a direction", member_limitations=[limitation], frequency=1, still_open=True
+    )
+    build_mock = mocker.patch("rag.directions.cluster.build_directions", return_value=[unopened])
+    opened = unopened.model_copy(update={"still_open": False, "solving_papers": ["s2:fix"]})
+    openness_mock = mocker.patch("rag.directions.openness.check_openness", return_value=opened)
+
+    result = pipeline.discover_directions("some field")
+
+    build_mock.assert_called_once_with([limitation])
+    openness_mock.assert_called_once_with(unopened)
+    assert result == [opened]

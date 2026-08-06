@@ -118,6 +118,23 @@ def test_get_paper_propagates_non_404_errors(mocker) -> None:
     assert raised
 
 
+def test_get_citing_papers_unwraps_citing_paper_field(mocker) -> None:
+    response = {
+        "data": [
+            {"citingPaper": S2_SEARCH_RESPONSE["data"][0]},
+            {"citingPaper": None},  # a citation S2 has no metadata for
+        ]
+    }
+    mock_get = mocker.patch.object(sources, "cached_get", return_value=response)
+
+    papers = sources.get_citing_papers("abc123")
+
+    assert len(papers) == 1
+    assert papers[0].id == "s2:abc123"
+    _, kwargs = mock_get.call_args
+    assert "citingPaper.title" in kwargs["params"]["fields"]
+
+
 def test_looks_english_flags_mostly_non_ascii_abstract() -> None:
     from rag.models import Paper
 

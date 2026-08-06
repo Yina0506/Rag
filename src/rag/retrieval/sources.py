@@ -72,6 +72,23 @@ def get_paper(paper_id: str) -> Paper | None:
     return _paper_from_s2(data)
 
 
+def get_citing_papers(paper_id: str, limit: int = 20) -> list[Paper]:
+    """Papers that cite `paper_id` (S2's `/citations` endpoint, bare id — no
+    `s2:` prefix). This is the citation-graph half of Phase 6's openness
+    check (docs/08): which later papers engage with a gap-raising paper at
+    all, as a candidate pool to then check via entailment whether any of
+    them actually resolves the gap."""
+    fields = ",".join(f"citingPaper.{f}" for f in S2_FIELDS.split(","))
+    data = cached_get(
+        f"{S2_BASE}/paper/{paper_id}/citations",
+        params={"fields": fields, "limit": limit},
+        headers=_s2_headers(),
+        min_interval=1.0,
+    )
+    papers = (_paper_from_s2((item or {}).get("citingPaper")) for item in data.get("data", []))
+    return [p for p in papers if p is not None]
+
+
 def _paper_from_openalex(item: dict | None) -> Paper | None:
     if not item:
         return None
