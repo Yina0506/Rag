@@ -18,11 +18,26 @@ query vector and the indexed document vectors share one embedding space.
 genuine paper-to-paper similarity use case if one comes up (e.g. upgrading
 `limitations._find_similar_papers` from keyword search to vector search) —
 just not used for this index.
+
+**Second live-caught bug**: `get_client()` used to construct a brand new
+`QdrantClient` on every call. Embedded-mode Qdrant takes an exclusive file
+lock on `data/qdrant` for the life of the client object; a long-running
+process (the Streamlit app) calling `retrieve_candidates` more than once
+could race its own previous client's lock release against the new client's
+acquisition, surfacing as "Storage folder ... is already accessed by
+another instance of Qdrant client" — a process conflicting with *itself*.
+Fixed by caching the client (one instance for the process's lifetime,
+matching the `@lru_cache` singleton pattern already used for the embedding/
+reranker models). For genuine multi-process concurrent access (e.g. this
+UI plus a separate script both touching the index at once), embedded mode
+is still the wrong tool — switch to `qdrant_mode = "server"` and run the
+`qdrant` service from docker-compose.yml, which is built for exactly that.
 """
 
 from __future__ import annotations
 
 import uuid
+from functools import lru_cache
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qm
@@ -34,6 +49,7 @@ from rag.retrieval.embed import embed_text
 VECTOR_SIZE = 1024  # BAAI/bge-m3 embedding dimension — must match the query embedding space
 
 
+@lru_cache(maxsize=1)
 def get_client() -> QdrantClient:
     if settings.qdrant_mode == "server":
         return QdrantClient(url=settings.qdrant_url)

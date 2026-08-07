@@ -284,6 +284,18 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
   dimension); regression-guard test added. Confirmed fixed live. See `docs/03` for detail.
   **Takeaway:** the UI turned out to be a genuinely effective live-validation tool in its
   own right, not just a demo surface — worth routing more manual testing through it.
+- 2026-08-06: **user hit a third live bug via the UI**, right after the rerank fix above:
+  "Storage folder .../data/qdrant is already accessed by another instance of Qdrant client."
+  Root cause: `retrieval/index.py`'s `get_client()` constructed a brand-new `QdrantClient`
+  on every call; embedded-mode Qdrant holds an exclusive file lock for the life of the
+  client object, so the long-running Streamlit process could race its own previous client's
+  (not-yet-released) lock against a new one on a second "Verify" click — a process
+  conflicting with itself. Fixed by caching the client with `@lru_cache(maxsize=1)`, same
+  singleton pattern already used for the embedding/reranker models. Required restarting the
+  Streamlit process to pick up the fix (Python doesn't reload already-imported modules on a
+  Streamlit rerun — only a full process restart does). Noted in `index.py`'s docstring: for
+  genuine multi-process concurrent access, embedded mode is still the wrong tool — switch to
+  `qdrant_mode = "server"` (docker-compose's `qdrant` service) if that's ever needed.
 
 ## Next up — no more unbuilt phases; this is now a live-validation and eval punch list
 - **A running GROBID instance** (`docker compose --profile phase5 up grobid`): unblocks
