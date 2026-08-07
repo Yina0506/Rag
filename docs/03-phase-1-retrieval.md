@@ -74,6 +74,17 @@ case, just isn't used for this index anymore. Added a regression-guard test
 (`test_upsert_uses_embed_text_not_embed_paper`) so this can't silently reappear. Confirmed
 fixed: `verify_claim` now returns real graded verdicts instead of an empty list.
 
+**Update 2026-08-06 (yet later): a second real bug, found by actually reading the results**
+(user searched "attention is all you need" and got decoy "X Attention Is All You Need"
+papers ranked above the real 2017 Vaswani paper). Root cause: `rerank.py` falls back to
+`paper.title` when `abstract` is `None`; a title near-identical to the query text scores
+artificially high on pure lexical overlap in the cross-encoder, burying a genuinely relevant
+paper whose real abstract doesn't repeat the query phrase verbatim. Fixed by filtering out
+abstract-less papers in `pipeline.retrieve_candidates` before they reach indexing/reranking
+at all (they'd also only produce an uninformative empty-evidence NEUTRAL from entailment
+anyway). Confirmed live: the real paper now ranks first with SUPPORTS at 0.95 confidence.
+See `docs/PROGRESS.md` for the full writeup.
+
 **Still not done:** the full exit criteria (10 hand-picked claims, ≥5 relevant papers each,
 via the notebook) — the pieces it needs are now all individually proven, just not run
 together as the notebook end-to-end yet.

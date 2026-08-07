@@ -32,6 +32,16 @@ def retrieve_candidates(claim: str, k: int = 5) -> list[Candidate]:
     from rag.retrieval.sources import search_papers
 
     papers = search_papers(claim, limit=max(k * 4, 20))
+    # Live-caught bug: a paper with no abstract has no evidence text for
+    # rerank/entailment to reason over. rerank.py's fallback to bare title
+    # then lets a title-only textual match (e.g. "X Attention Is All You
+    # Need" against the claim "attention is all you need") outscore a real,
+    # topically-relevant paper whose abstract doesn't literally repeat the
+    # query phrase — and downstream entailment can only produce an
+    # uninformative NEUTRAL/empty-justification verdict from empty evidence
+    # anyway. Filtering here (not just in rerank) keeps abstract-less papers
+    # out of the whole candidate pool, per "only reason over retrieved text."
+    papers = [p for p in papers if p.abstract]
     if not papers:
         return []
     upsert_papers(papers)

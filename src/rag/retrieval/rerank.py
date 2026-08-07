@@ -3,6 +3,16 @@
 The biggest lever on mismatch reduction per docs/01-architecture.md — run
 after vector search narrows candidates, before they reach the existence gate.
 Requires the `ml` optional-dependency group: `uv sync --extra ml`.
+
+**Live-caught bug, fixed upstream**: falling back to `paper.title` when
+`abstract` is missing let a title-only textual match (e.g. a paper literally
+titled "X Attention Is All You Need") heavily outscore a genuinely relevant
+paper whose abstract doesn't repeat the query phrase verbatim — cross-encoders
+reward literal string overlap. `pipeline.retrieve_candidates` now filters out
+abstract-less papers before they ever reach here, so this fallback shouldn't
+normally trigger in production; it's kept only as a defensive default for
+direct/standalone calls to `rerank()` (e.g. in tests or a notebook) that
+didn't go through that filter.
 """
 
 from __future__ import annotations

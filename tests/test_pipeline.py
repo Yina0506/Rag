@@ -23,6 +23,30 @@ def test_retrieve_candidates_returns_empty_when_no_papers_found(mocker) -> None:
     assert pipeline.retrieve_candidates("a claim with no matches") == []
 
 
+def test_retrieve_candidates_filters_out_papers_without_abstract(sample_paper, mocker) -> None:
+    """Regression (found live via the UI): a paper with no abstract has no
+    evidence text for rerank/entailment to reason over, and rerank.py's
+    title fallback let a title-only textual match (e.g. a paper literally
+    titled after the claim) heavily outscore a genuinely relevant paper —
+    cross-encoders reward literal string overlap. Must be filtered before
+    reaching rerank/index, not just handled defensively downstream."""
+    abstract_less = sample_paper.model_copy(update={"id": "s2:no-abstract", "abstract": None})
+    mocker.patch(
+        "rag.retrieval.sources.search_papers", return_value=[sample_paper, abstract_less]
+    )
+    upsert_mock = mocker.patch("rag.retrieval.index.upsert_papers")
+    mocker.patch("rag.retrieval.embed.embed_text", return_value=[0.1, 0.2])
+    candidate = Candidate(paper=sample_paper, score=0.5)
+    mocker.patch("rag.retrieval.index.search", return_value=[candidate])
+    mocker.patch("rag.retrieval.rerank.rerank", return_value=[candidate])
+    mocker.patch("rag.verify.existence.existence_verdict", return_value=ExistenceStatus.EXISTS)
+
+    pipeline.retrieve_candidates("some claim")
+
+    upserted_papers = upsert_mock.call_args[0][0]
+    assert [p.id for p in upserted_papers] == [sample_paper.id]
+
+
 def test_retrieve_candidates_wires_search_index_rerank_and_gate(sample_paper, mocker) -> None:
     mocker.patch("rag.retrieval.sources.search_papers", return_value=[sample_paper])
     mocker.patch("rag.retrieval.index.upsert_papers")

@@ -314,6 +314,21 @@ directions. (Matches Julius's own thesis area -> he can sanity-check discovered 
   later: query rewriting/keyword extraction before hitting S2, or leaning more on the vector
   rerank stage — but reranking can only reorder what S2's keyword search already returned,
   so if the right paper isn't in that candidate set at all, no downstream stage recovers it.
+- **Follow-up, same day: found the actual rerank bug behind the above.** Searching
+  "attention is all you need" put decoys like "Moral Attention Is All You Need" (a
+  philosophy paper, `abstract: None`) at rank 1 (score 0.9985) and the real 2017 Vaswani
+  paper at rank 8 (score 0.0053) — *despite* the real paper being S2's own top search
+  result. Root cause: `rerank.py` falls back to `paper.title` when `abstract` is `None`, so
+  a title that's near-identical to the query text (the "X Attention Is All You Need" title
+  meme) scores artificially high on pure lexical overlap, while the real paper's genuine
+  abstract — topically perfect but not a verbatim phrase match — scores far lower.
+  Compounding it: entailment on an abstract-less candidate can only produce an
+  uninformative NEUTRAL with empty justification anyway (no evidence text to reason over).
+  Fixed in `pipeline.retrieve_candidates`: papers without an abstract are filtered out
+  before indexing/reranking, not handled defensively downstream — `rerank.py`'s title
+  fallback is now a defensive-only default for direct/standalone calls. Confirmed live:
+  `verify_claim("attention is all you need")` now correctly ranks the real paper first
+  (SUPPORTS, 0.95).
 
 ## Decisions made
 - Stack locked per `01-architecture.md` (Qdrant embedded, SQLite, SPECTER2+BGE-M3, graded
